@@ -143,15 +143,22 @@ class Client
      */
     public function receiveMessage(): ?string
     {
-        $message = new Message($this->stream);
-        $message->read();
+        $message = Message::receive($this->stream);
 
         $this->buffer[] = $message;
 
         if ($message->isFinal()) {
-            Message::combineBuffer($this->buffer, $msgOpcode, $msgText);
+            $msgOpcode = Message::OPCODE_TEXT;
+            $msgText = null;
 
-            if ($msgOpcode == Message::OPCODE_CONNECTION_CLOSE_FRAME) {
+            foreach ($this->buffer as $message) {
+                $msgOpcode = $message->getOpcode();
+                $msgText .= $message->getPayload() ?? '';
+            }
+
+            $this->buffer = [];
+
+            if ($msgOpcode == Message::OPCODE_CONNECTION_CLOSE) {
                 $this->disconnect();
             } else {
                 return $msgText;
@@ -164,12 +171,12 @@ class Client
     /**
      * Sends text message to client
      * @param string $text Text message
-     * @return bool Success
+     * @return void
      */
-    public function sendMessage(string $text): bool
+    public function sendMessage(string $text): void
     {
-        $message = new Message($this->stream, Message::OPCODE_TEXT_FRAME, $text);
-        return $message->write();
+        $message = new Message($this->stream, Message::OPCODE_TEXT, $text);
+        $message->send();
     }
 
     /**

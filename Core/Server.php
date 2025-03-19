@@ -198,7 +198,6 @@ class Server
         $incomingStream = @stream_socket_accept($this->stream, 0) ?: null;
 
         if (is_resource($incomingStream)) {
-            stream_set_blocking($incomingStream, false);
 
             $streamId = intval($incomingStream);
             $ipAddr = Client::extractIp($incomingStream);
