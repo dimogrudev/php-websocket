@@ -7,6 +7,7 @@ class Client
     const MAX_HEADERS_LENGTH    = 4096;
     const WEBSOCKET_GUID        = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
+    const PING_RESPONSE_TIMEOUT = 10000;
     const HANDSHAKE_TIMEOUT     = 10000;
 
     /** @var resource $stream Client stream */
@@ -15,9 +16,13 @@ class Client
     private string $ipAddr;
     /** @var float $connectedAt Time of connection */
     private float $connectedAt;
+    /** @var float $pingedAt Time of ping */
+    private float $pingedAt;
 
     /** @var bool $connected Client connected */
     private bool $connected     = true;
+    /** @var bool $pongExpected Client needs to answer ping message */
+    private bool $pongExpected  = false;
     /** @var bool $handshake Handshake performed */
     private bool $handshake     = false;
 
@@ -127,6 +132,12 @@ class Client
     {
         $microtime = (float)microtime(true);
 
+        if ($this->pongExpected) {
+            if (($microtime - $this->pingedAt) * 1000 > self::PING_RESPONSE_TIMEOUT) {
+                $this->disconnect();
+                return false;
+            }
+        }
         if (!$this->handshake) {
             if (($microtime - $this->connectedAt) * 1000 > self::HANDSHAKE_TIMEOUT) {
                 $this->disconnect();
@@ -149,7 +160,7 @@ class Client
 
         if ($message->isFinal()) {
             $msgOpcode = Message::OPCODE_TEXT;
-            $msgText = null;
+            $msgText = '';
 
             foreach ($this->buffer as $message) {
                 $msgOpcode = $message->getOpcode();
@@ -160,6 +171,11 @@ class Client
 
             if ($msgOpcode == Message::OPCODE_CONNECTION_CLOSE) {
                 $this->disconnect();
+            } else if ($msgOpcode == Message::OPCODE_PING) {
+                $pongMsg = new Message($this->stream, Message::OPCODE_PONG);
+                $pongMsg->send();
+            } else if ($msgOpcode == Message::OPCODE_PONG) {
+                $this->pongExpected = false;
             } else {
                 return $msgText;
             }
@@ -177,6 +193,21 @@ class Client
     {
         $message = new Message($this->stream, Message::OPCODE_TEXT, $text);
         $message->send();
+    }
+
+    /**
+     * Sends ping frame to client
+     * @return void
+     */
+    public function ping(): void
+    {
+        if (!$this->pongExpected) {
+            $this->pingedAt = (float)microtime(true);
+            $this->pongExpected = true;
+
+            $pingMsg = new Message($this->stream, Message::OPCODE_PING);
+            $pingMsg->send();
+        }
     }
 
     /**

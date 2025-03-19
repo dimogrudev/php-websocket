@@ -6,7 +6,8 @@ use Entity\Client;
 
 class Server
 {
-    const CHECK_TIMEOUTS_INTERVAL   = 2000;
+    const CHECK_TIMEOUTS_INTERVAL       = 2000;
+    const PING_INTERVAL                 = 20000;
 
     /** @var string $transport Transport layer protocol */
     private string $transport;
@@ -16,17 +17,17 @@ class Server
     private int $port;
 
     /** @var resource|null $stream Server stream */
-    private $stream                 = null;
+    private $stream                     = null;
     /** @var resource|null $sslContext Server stream context */
-    private $sslContext             = null;
+    private $sslContext                 = null;
 
     /** @var array<int, Client> $clients All current clients */
-    private array $clients          = [];
+    private array $clients              = [];
     /** @var bool $running Server is running */
-    private bool $running           = false;
+    private bool $running               = false;
 
     /** @var array<string, \Closure> $callbacks Server callbacks */
-    private array $callbacks        = [];
+    private array $callbacks            = [];
 
     public function __construct(array $config)
     {
@@ -84,7 +85,10 @@ class Server
         }
 
         $serverStreamId = intval($this->stream);
-        $timeoutsChecked = (float)microtime(true);
+        $microtime = (float)microtime(true);
+
+        $timeoutsChecked = $microtime;
+        $pingSent = $microtime;
 
         $this->clients = [
             $serverStreamId => new Client($this->stream, $this->host)
@@ -154,6 +158,19 @@ class Server
 
                 unset($client);
                 $timeoutsChecked = $microtime;
+            }
+
+            if (($microtime - $pingSent) * 1000 >= self::PING_INTERVAL) {
+                foreach ($this->clients as $streamId => &$client) {
+                    if ($streamId != $serverStreamId) {
+                        if ($client->isConnected() && $client->isHandshakePerformed()) {
+                            $client->ping();
+                        }
+                    }
+                }
+
+                unset($client);
+                $pingSent = $microtime;
             }
         }
 
