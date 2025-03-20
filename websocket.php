@@ -4,6 +4,14 @@ use Entity\Client;
 
 require __DIR__ . '/autoload.php';
 
+if (Core\Modules\Process::isLocked()) {
+    echo "\nProcess locked";
+    exit;
+}
+
+Core\Modules\Process::lock();
+echo "\nRun " . \Core\Modules\Process::getPid();
+
 set_time_limit(0);
 
 $config = require(__DIR__ . '/config.php');

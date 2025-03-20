@@ -8,6 +8,7 @@ class Server
 {
     const CHECK_TIMEOUTS_INTERVAL       = 2000;
     const PING_INTERVAL                 = 20000;
+    const PROCESS_SIGNAL_INTERVAL       = 10000;
 
     /** @var string $transport Transport layer protocol */
     private string $transport;
@@ -106,6 +107,7 @@ class Server
 
         $timeoutsChecked = $microtime;
         $pingSent = $microtime;
+        $processSignalSent = $microtime;
 
         while ($this->running) {
             $read = $this->getStreams();
@@ -185,6 +187,11 @@ class Server
 
                 unset($client);
                 $pingSent = $microtime;
+            }
+
+            if (($microtime - $processSignalSent) * 1000 >= self::PROCESS_SIGNAL_INTERVAL) {
+                Modules\Process::signal();
+                $processSignalSent = $microtime;
             }
         }
 
