@@ -26,7 +26,19 @@ $server->on('messageReceive', function (Client $client, string $message) use ($s
     $streamId = $client->getId();
 
     echo "\n{$ipAddr} (#{$streamId}) says '{$message}'";
-	$client->sendMessageToAll($server->getClients(), "{$ipAddr} (#{$streamId}): {$message}");
+
+    if ($message == '/stop') {
+        $server->stop();
+    } else if ($message == '/memusage') {
+        $client->sendMessage((memory_get_usage() / 1000) . ' KB');
+    } else if ($message == '/online') {
+        $client->sendMessage($server->getOnline() . " user(s)");
+    } else if ($message == '/uptime') {
+        $uptime = $server->getUptime();
+        $client->sendMessage(sprintf('%02d:%02d:%02d', $uptime / 3600, floor($uptime / 60) % 60, $uptime % 60));
+    } else {
+        $client->sendMessageToAll($server->getClients(), "{$ipAddr} (#{$streamId}): {$message}");
+    }
 });
 
 $server->start();

@@ -248,21 +248,4 @@ class Client
 
         return null;
     }
-
-    /**
-     * @param array<int, self> $clients
-     * @return array<int, resource>
-     */
-    public static function getStreams(array $clients): array
-    {
-        $streams = [];
-
-        foreach ($clients as $streamId => $client) {
-            if ($client->isConnected()) {
-                $streams[$streamId] = $client->getStream();
-            }
-        }
-
-        return $streams;
-    }
 }
