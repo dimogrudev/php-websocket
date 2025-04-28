@@ -2,79 +2,54 @@
 
 namespace Entity;
 
-class Client
+use Enum\Opcode;
+
+/**
+ * Represents client entity
+ */
+final class Client
 {
-    const MAX_HEADERS_LENGTH    = 4096;
-    const WEBSOCKET_GUID        = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+    const int MAX_HEADERS_LENGTH    = 4096;
+    const string WEBSOCKET_GUID     = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
-    const PING_RESPONSE_TIMEOUT = 10000;
-    const HANDSHAKE_TIMEOUT     = 10000;
+    const int TIMEOUT_PING_RESPONSE = 10000;
+    const int TIMEOUT_HANDSHAKE     = 10000;
 
-    /** @var resource $stream Client stream */
-    private $stream;
-    /** @var string $ipAddr Client IP address */
-    private string $ipAddr;
+    /** @var int $id Client stream ID */
+    public int $id {
+        get => intval($this->stream);
+    }
+
     /** @var float $connectedAt Time of connection */
     private float $connectedAt;
     /** @var float $pingedAt Time of ping */
     private float $pingedAt;
 
     /** @var bool $connected Client connected */
-    private bool $connected     = true;
+    private(set) bool $connected    = true;
     /** @var bool $pongExpected Client needs to answer ping message */
-    private bool $pongExpected  = false;
+    private(set) bool $pongExpected = false;
     /** @var bool $handshake Handshake performed */
-    private bool $handshake     = false;
+    private(set) bool $handshake    = false;
 
     /** @var Message[] $buffer Messages buffer */
-    private array $buffer       = [];
+    private array $buffer           = [];
 
     /**
+     * Class constructor
      * @param resource $stream Client stream
      * @param string $ipAddr Client IP address
      * @return void
      */
-    public function __construct($stream, string $ipAddr)
-    {
-        $this->stream = $stream;
-        $this->ipAddr = $ipAddr;
-        $this->connectedAt = (float)microtime(true);
-    }
+    public function __construct(
+        private(set) mixed $stream,
+        private(set) string $ipAddr
+    ) {
+        /** @var float $microtime */
+        $microtime = microtime(true);
 
-    /**
-     * Gets client stream ID
-     * @return int Stream ID
-     */
-    public function getId(): int
-    {
-        return intval($this->stream);
-    }
-
-    /**
-     * Gets client stream
-     * @return resource Stream
-     */
-    public function getStream()
-    {
-        return $this->stream;
-    }
-
-    /**
-     * Gets client IP address
-     * @return string IP address
-     */
-    public function getIpAddr(): string
-    {
-        return $this->ipAddr;
-    }
-
-    /**
-     * Shows if client connected
-     * @return bool Client connected
-     */
-    public function isConnected(): bool
-    {
-        return $this->connected;
+        $this->connectedAt = $microtime;
+        $this->pingedAt = $microtime;
     }
 
     /**
@@ -90,14 +65,9 @@ class Client
     }
 
     /**
-     * Shows if handshake performed
-     * @return bool Handshake performed
+     * Tries to perform handshake with the client
+     * @return bool Returns **TRUE** on success, **FALSE** otherwise
      */
-    public function isHandshakePerformed(): bool
-    {
-        return $this->handshake;
-    }
-
     public function performHandshake(): bool
     {
         $buffer = fread($this->stream, self::MAX_HEADERS_LENGTH);
@@ -114,7 +84,9 @@ class Client
 
             if (isset($headers['Sec-WebSocket-Key'])) {
                 $secKey = $headers['Sec-WebSocket-Key'];
-                $secAccept = base64_encode(pack('H*', sha1($secKey . self::WEBSOCKET_GUID)));
+                $secAccept = base64_encode(
+                    pack('H*', sha1($secKey . self::WEBSOCKET_GUID))
+                );
 
                 $upgrade  = "HTTP/1.1 101 Switching Protocols\r\n" .
                     "Upgrade: websocket\r\n" .
@@ -128,18 +100,23 @@ class Client
         return false;
     }
 
+    /**
+     * Checks client timeouts
+     * @return bool Returns **TRUE** if client is still connected, **FALSE** otherwise
+     */
     public function checkTimeouts(): bool
     {
-        $microtime = (float)microtime(true);
+        /** @var float $microtime */
+        $microtime = microtime(true);
 
         if ($this->pongExpected) {
-            if (($microtime - $this->pingedAt) * 1000 > self::PING_RESPONSE_TIMEOUT) {
+            if (($microtime - $this->pingedAt) * 1000 > self::TIMEOUT_PING_RESPONSE) {
                 $this->disconnect();
                 return false;
             }
         }
         if (!$this->handshake) {
-            if (($microtime - $this->connectedAt) * 1000 > self::HANDSHAKE_TIMEOUT) {
+            if (($microtime - $this->connectedAt) * 1000 > self::TIMEOUT_HANDSHAKE) {
                 $this->disconnect();
                 return false;
             }
@@ -150,7 +127,7 @@ class Client
 
     /**
      * Receives text message from client
-     * @return string|null
+     * @return string|null Returns text message or **NULL** if it cannot be obtained (in case of another opcode or it is not final)
      */
     public function receiveMessage(): ?string
     {
@@ -158,23 +135,23 @@ class Client
 
         $this->buffer[] = $message;
 
-        if ($message->isFinal()) {
-            $msgOpcode = Message::OPCODE_TEXT;
+        if ($message->final) {
+            $msgOpcode = Opcode::TEXT;
             $msgText = '';
 
             foreach ($this->buffer as $message) {
-                $msgOpcode = $message->getOpcode();
-                $msgText .= $message->getPayload() ?? '';
+                $msgOpcode = $message->opcode;
+                $msgText .= $message->payload ?? '';
             }
 
             $this->buffer = [];
 
-            if ($msgOpcode == Message::OPCODE_CONNECTION_CLOSE) {
+            if ($msgOpcode == Opcode::CONNECTION_CLOSE) {
                 $this->disconnect();
-            } else if ($msgOpcode == Message::OPCODE_PING) {
-                $pongMsg = new Message($this->stream, Message::OPCODE_PONG);
+            } else if ($msgOpcode == Opcode::PING) {
+                $pongMsg = new Message($this->stream, true, Opcode::PONG);
                 $pongMsg->send();
-            } else if ($msgOpcode == Message::OPCODE_PONG) {
+            } else if ($msgOpcode == Opcode::PONG) {
                 $this->pongExpected = false;
             } else {
                 return $msgText;
@@ -191,7 +168,7 @@ class Client
      */
     public function sendMessage(string $text): void
     {
-        $message = new Message($this->stream, Message::OPCODE_TEXT, $text);
+        $message = new Message($this->stream, true, Opcode::TEXT, $text);
         $message->send();
     }
 
@@ -202,34 +179,18 @@ class Client
     public function ping(): void
     {
         if (!$this->pongExpected) {
-            $this->pingedAt = (float)microtime(true);
+            $this->pingedAt = microtime(true);
             $this->pongExpected = true;
 
-            $pingMsg = new Message($this->stream, Message::OPCODE_PING);
+            $pingMsg = new Message($this->stream, true, Opcode::PING);
             $pingMsg->send();
         }
     }
 
     /**
-     * @param array<int, self> $clients
-     * @param string $text
-     * @return void
-     */
-    public function sendMessageToAll(array $clients, string $text): void
-    {
-        $currentId = $this->getId();
-
-        foreach ($clients as $client) {
-            if ($client->isConnected() && $client->getId() != $currentId) {
-                $client->sendMessage($text);
-            }
-        }
-    }
-
-    /**
-     * Exctracts IP address from client stream
-     * @param resource $stream Client stream
-     * @return string|null IP address
+     * Extracts IP address from stream
+     * @param resource $stream Source stream
+     * @return string|null Returns IP address or **NULL** on failure
      */
     public static function extractIp($stream): ?string
     {

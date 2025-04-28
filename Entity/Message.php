@@ -2,55 +2,34 @@
 
 namespace Entity;
 
-class Message
+use Enum\Opcode;
+
+/**
+ * Represents message entity
+ */
+final class Message
 {
-    const OPCODE_CONTINUATION       = 0;
-    const OPCODE_TEXT               = 1;
-    const OPCODE_BINARY             = 2;
-    const OPCODE_CONNECTION_CLOSE   = 8;
-    const OPCODE_PING               = 9;
-    const OPCODE_PONG               = 10;
-
-    const MAX_CHUNK_LENGTH          = 4096;
-    const MAX_CHUNKS                = 16;
-
-    /** @var resource $stream Stream */
-    private $stream;
-
-    /** @var int $opcode Opcode */
-    private int $opcode;
-    /** @var string|null $payload Message content */
-    private ?string $payload        = null;
-    /** @var int $length Message length */
-    private int $length             = 0;
-    /** @var bool $final Final message */
-    private bool $final             = true;
+    const int MAX_CHUNK_LENGTH      = 4096;
+    const int MAX_CHUNKS            = 16;
 
     /**
-     * @param resource $stream
-     * @param int|null $opcode
-     * @param string|null $payload
-     * @param bool $final
+     * Class constructor
+     * @param resource $stream Stream
+     * @param bool $final Final message
+     * @param Opcode $opcode Message opcode
+     * @param string|null $payload Message content
      * @return void
      */
-    public function __construct($stream, ?int $opcode = null, ?string $payload = null, bool $final = true)
-    {
-        $this->stream = $stream;
-
-        if ($opcode) {
-            $this->opcode = $opcode;
-        } else {
-            $this->opcode = self::OPCODE_CONTINUATION;
-        }
-        if ($payload) {
-            $this->payload = $payload;
-            $this->length = strlen($payload);
-        }
-        $this->final = $final;
-    }
+    public function __construct(
+        private mixed $stream,
+        private(set) bool $final,
+        private(set) Opcode $opcode,
+        private(set) ?string $payload = null
+    ) {}
 
     /**
-     * @param resource $stream
+     * Receives message from stream 
+     * @param resource $stream Source stream
      * @return self
      */
     public static function receive($stream): self
@@ -89,25 +68,26 @@ class Message
                                 $payload = $buffer;
                             }
 
-                            return new self($stream, $opcode, $payload, $final);
+                            return new self($stream, $final, $opcode, $payload);
                         }
                     } else {
-                        return new self($stream, $opcode);
+                        return new self($stream, true, $opcode);
                     }
                 }
             }
         }
 
-        return new self($stream, self::OPCODE_CONNECTION_CLOSE);
+        return new self($stream, true, Opcode::CONNECTION_CLOSE);
     }
 
     /**
-     * @param resource $stream
-     * @param bool &$final
-     * @param int|null &$opcode
-     * @param bool &$masked
-     * @param int|null &$length
-     * @return bool
+     * Receives header from stream
+     * @param resource $stream Source stream
+     * @param bool &$final Final message
+     * @param Opcode|null &$opcode Message opcode
+     * @param bool &$masked Message content is masked
+     * @param int|null &$length Message content length
+     * @return bool Returns **TRUE** on success, **FALSE** otherwise
      */
     private static function receiveHeader($stream, &$final = true, &$opcode = null, &$masked = true, &$length = null): bool
     {
@@ -118,7 +98,7 @@ class Message
 
             if ($bytes) {
                 $final = (bool)($bytes[1] & 0b10000000);
-                $opcode = $bytes[1] & 0b00001111;
+                $opcode = Opcode::tryFrom($bytes[1] & 0b00001111);
 
                 $masked = (bool)($bytes[2] & 0b10000000);
                 $length = $bytes[2] & 0b01111111;
@@ -153,9 +133,10 @@ class Message
     }
 
     /**
-     * @param resource $stream
-     * @param int $length
-     * @return string|null
+     * Reads data from stream
+     * @param resource $stream Source stream
+     * @param int $length Data length
+     * @return string|null Returns received data or **NULL** on failure
      */
     private static function readFromStream($stream, int $length): ?string
     {
@@ -167,7 +148,7 @@ class Message
 
             if ($data) {
                 $buffer .= $data;
-                $bufferSize = strlen($buffer);
+                $bufferSize += strlen($data);
             } else {
                 return null;
             }
@@ -177,49 +158,28 @@ class Message
     }
 
     /**
+     * Sends message
      * @return void
      */
     public function send(): void
     {
         // FIN (1 bit) + RSV1, RSV2, RSV3 (1 bit each) + Opcode (4 bits)
-        $header = pack('C', ($this->final ? 0b10000000 : 0b00000000) | $this->opcode);
+        $header = pack('C', ($this->final ? 0b10000000 : 0b00000000) | $this->opcode->value);
+        // Payload length
+        $msgLength = is_string($this->payload) ? strlen($this->payload) : 0;
 
         // Set payload length
-        if ($this->length > 65535) {
+        if ($msgLength > 65535) {
             // Mask (1 bit) + Payload length (7+64 bits)
-            $header .= pack('CJ', 0b00000000 | 127, $this->length);
-        } else if ($this->length > 125) {
+            $header .= pack('CJ', 0b00000000 | 127, $msgLength);
+        } else if ($msgLength > 125) {
             // Mask (1 bit) + Payload length (7+16 bits)
-            $header .= pack('Cn', 0b00000000 | 126, $this->length);
+            $header .= pack('Cn', 0b00000000 | 126, $msgLength);
         } else {
             // Mask (1 bit) + Payload length (7 bits)
-            $header .= pack('C', 0b00000000 | $this->length);
+            $header .= pack('C', 0b00000000 | $msgLength);
         }
 
         @fwrite($this->stream, $header . $this->payload);
-    }
-
-    /**
-     * @return int
-     */
-    public function getOpcode(): int
-    {
-        return $this->opcode;
-    }
-
-    /**
-     * @return string|null
-     */
-    public function getPayload(): ?string
-    {
-        return $this->payload;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isFinal(): bool
-    {
-        return $this->final;
     }
 }

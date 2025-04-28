@@ -2,13 +2,17 @@
 
 namespace Core;
 
+use Closure;
 use Entity\Client;
 
-class Server
+/**
+ * Represents main server class
+ */
+final class Server
 {
-    const CHECK_TIMEOUTS_INTERVAL       = 2000;
-    const PING_INTERVAL                 = 20000;
-    const PROCESS_SIGNAL_INTERVAL       = 10000;
+    const int INTERVAL_CHECK_TIMEOUTS   = 2000;
+    const int INTERVAL_PING             = 20000;
+    const int INTERVAL_PROCESS_SIGNAL   = 10000;
 
     /** @var string $transport Transport layer protocol */
     private string $transport;
@@ -18,26 +22,37 @@ class Server
     private int $port;
 
     /** @var resource|null $stream Server stream */
-    private $stream                     = null;
+    private mixed $stream               = null;
     /** @var resource|null $sslContext Server stream context */
-    private $sslContext                 = null;
-
-    /** @var int $serverStreamId Server stream ID */
-    private int $serverStreamId;
+    private mixed $sslContext           = null;
 
     /** @var bool $running Server is running */
-    private bool $running               = false;
-    /** @var int $startedAt Time of starting */
+    private(set) bool $running          = false;
+    /** @var int $startedAt Time of start */
     private int $startedAt;
+
+    /** @var int $uptime Server uptime */
+    public int $uptime {
+        get {
+            if (isset($this->startedAt)) {
+                return time() - $this->startedAt;
+            }
+            return 0;
+        }
+    }
 
     /** @var array<int, Client> $clients All current clients */
     private array $clients              = [];
-    /** @var int $online Amount of clients online */
-    private int $online                 = 0;
+    /** @var int $online Number of clients online */
+    private(set) int $online            = 0;
 
-    /** @var array<string, \Closure> $callbacks Server callbacks */
+    /** @var array<string, Closure> $callbacks Server callbacks */
     private array $callbacks            = [];
 
+    /**
+     * @param array $config Configuration
+     * @return void
+     */
     public function __construct(array $config)
     {
         $this->transport = $config['transport'];
@@ -50,7 +65,6 @@ class Server
                 'local_pk'              => __DIR__ . '/..' . $config['sslCertPath']['key'],
                 'disable_compression'   => true,
                 'verify_peer'           => false,
-                'ssltransport'          => $config['transport'],
             ]]);
         }
     }
@@ -58,10 +72,10 @@ class Server
     /**
      * Registers server callback
      * @param string $callback Event name
-     * @param \Closure $function Callback function
+     * @param Closure $function Callback function
      * @return void
      */
-    public function on(string $callback, \Closure $function): void
+    public function on(string $callback, Closure $function): void
     {
         $this->callbacks[$callback] = $function;
     }
@@ -93,17 +107,18 @@ class Server
             return;
         }
 
-        $this->serverStreamId = intval($this->stream);
+        $serverId = intval($this->stream);
 
         $this->running = true;
         $this->startedAt = time();
 
         $this->clients = [
-            $this->serverStreamId => new Client($this->stream, $this->host)
+            $serverId => new Client($this->stream, $this->host)
         ];
         $this->online = 0;
 
-        $microtime = (float)microtime(true);
+        /** @var float $microtime */
+        $microtime = microtime(true);
 
         $timeoutsChecked = $microtime;
         $pingSent = $microtime;
@@ -118,14 +133,14 @@ class Server
                 foreach ($read as $changingStream) {
                     $streamId = intval($changingStream);
 
-                    if ($streamId == $this->serverStreamId) {
+                    if ($streamId == $serverId) {
                         $this->acceptIncomingStream();
-                    } else {
+                    } else if (isset($this->clients[$streamId])) {
                         $ipAddr = Client::extractIp($changingStream);
                         $client = &$this->clients[$streamId];
 
                         if ($ipAddr) {
-                            if (!$client->isHandshakePerformed()) {
+                            if (!$client->handshake) {
                                 if ($client->performHandshake()) {
                                     $this->triggerCallback('handshakePerform', [$client]);
                                 } else {
@@ -141,7 +156,7 @@ class Server
                             $client->disconnect();
                         }
 
-                        if (!$client->isConnected()) {
+                        if (!$client->connected) {
                             $this->online--;
                             $this->triggerCallback('clientDisconnect', [$client]);
                         }
@@ -151,12 +166,13 @@ class Server
                 }
             }
 
-            $microtime = (float)microtime(true);
+            /** @var float $microtime */
+            $microtime = microtime(true);
 
-            if (($microtime - $timeoutsChecked) * 1000 >= self::CHECK_TIMEOUTS_INTERVAL) {
+            if (($microtime - $timeoutsChecked) * 1000 >= self::INTERVAL_CHECK_TIMEOUTS) {
                 foreach ($this->clients as $streamId => &$client) {
-                    if ($streamId != $this->serverStreamId) {
-                        $connected = $client->isConnected();
+                    if ($streamId != $serverId) {
+                        $connected = $client->connected;
 
                         if ($connected) {
                             $connected = $client->checkTimeouts();
@@ -176,10 +192,10 @@ class Server
                 $timeoutsChecked = $microtime;
             }
 
-            if (($microtime - $pingSent) * 1000 >= self::PING_INTERVAL) {
+            if (($microtime - $pingSent) * 1000 >= self::INTERVAL_PING) {
                 foreach ($this->clients as $streamId => &$client) {
-                    if ($streamId != $this->serverStreamId) {
-                        if ($client->isConnected() && $client->isHandshakePerformed()) {
+                    if ($streamId != $serverId) {
+                        if ($client->stream && $client->handshake) {
                             $client->ping();
                         }
                     }
@@ -189,7 +205,7 @@ class Server
                 $pingSent = $microtime;
             }
 
-            if (($microtime - $processSignalSent) * 1000 >= self::PROCESS_SIGNAL_INTERVAL) {
+            if (($microtime - $processSignalSent) * 1000 >= self::INTERVAL_PROCESS_SIGNAL) {
                 Modules\Process::signal();
                 $processSignalSent = $microtime;
             }
@@ -201,12 +217,12 @@ class Server
 
     /**
      * Initializes server
-     * @return bool Success
+     * @return bool Returns **TRUE** on success, **FALSE** otherwise
      */
     private function init(): bool
     {
         if ($this->sslContext) {
-            $this->stream = stream_socket_server("{$this->transport}://{$this->host}:{$this->port}", $errno, $errstr, STREAM_SERVER_BIND | STREAM_SERVER_LISTEN, $this->sslContext) ?: null;
+            $this->stream = stream_socket_server("{$this->transport}://{$this->host}:{$this->port}", $errno, $errstr, context: $this->sslContext) ?: null;
         } else {
             $this->stream = stream_socket_server("{$this->transport}://{$this->host}:{$this->port}", $errno, $errstr) ?: null;
         }
@@ -232,36 +248,14 @@ class Server
     }
 
     /**
-     * Shows if server running
-     * @return bool Server running
-     */
-    public function isRunning(): bool
-    {
-        return $this->running;
-    }
-
-    /**
-     * Gets server uptime
-     * @return int Server uptime in seconds
-     */
-    public function getUptime(): int
-    {
-        if (isset($this->startedAt)) {
-            return time() - $this->startedAt;
-        }
-        return 0;
-    }
-
-    /**
      * Accepts incoming stream
-     * @return bool Success
+     * @return bool Returns **TRUE** on success, **FALSE** otherwise
      */
     private function acceptIncomingStream(): bool
     {
         $incomingStream = @stream_socket_accept($this->stream, 0) ?: null;
 
         if (is_resource($incomingStream)) {
-
             $streamId = intval($incomingStream);
             $ipAddr = Client::extractIp($incomingStream);
 
@@ -281,15 +275,15 @@ class Server
 
     /**
      * Gets all active streams, including server stream
-     * @return array<int, resource> Active streams
+     * @return array<int, resource> Returns active streams
      */
     private function getStreams(): array
     {
         $streams = [];
 
         foreach ($this->clients as $streamId => $client) {
-            if ($client->isConnected()) {
-                $streams[$streamId] = $client->getStream();
+            if ($client->connected) {
+                $streams[$streamId] = $client->stream;
             }
         }
 
@@ -298,15 +292,19 @@ class Server
 
     /**
      * Gets all clients connected to server
-     * @return array<int, Client> Connected clients
+     * @return array<int, Client> Returns connected clients
      */
     public function getClients(): array
     {
-        if (isset($this->serverStreamId)) {
+        if ($this->stream) {
+            $serverId = intval($this->stream);
             $clients = [];
 
             foreach ($this->clients as $streamId => $client) {
-                if ($streamId != $this->serverStreamId && $client->isConnected()) {
+                if (
+                    $streamId != $serverId
+                    && $client->connected && $client->handshake
+                ) {
                     $clients[] = $client;
                 }
             }
@@ -314,14 +312,5 @@ class Server
             return $clients;
         }
         return [];
-    }
-
-    /**
-     * Gets amount of clients online
-     * @return int Amount of clients
-     */
-    public function getOnline(): int
-    {
-        return $this->online;
     }
 }

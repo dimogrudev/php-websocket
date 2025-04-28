@@ -2,9 +2,12 @@
 
 namespace Core\Modules;
 
-class Process
+/**
+ * Represents process locking module
+ */
+final class Process
 {
-    const LOCKFILE_PATH             = '/LOCK';
+    const string LOCKFILE_PATH      = '/LOCK';
 
     /** @var int $pid Process ID */
     private static int $pid;
@@ -12,8 +15,8 @@ class Process
     private static int $signaledAt;
 
     /**
-     * Checks if process locked
-     * @return bool Locked
+     * Checks if process is locked
+     * @return bool Returns **TRUE** if process is locked, **FALSE** otherwise
      */
     public static function isLocked(): bool
     {
@@ -22,25 +25,28 @@ class Process
 
             if (file_exists($lockfile)) {
                 $json = file_get_contents($lockfile);
-                $properties = @json_decode($json, true) ?: [];
 
-                if ($properties && is_array($properties)) {
-                    foreach ($properties as $name => $value) {
-                        self::$$name = $value;
-                    }
+                if (is_string($json) && json_validate($json)) {
+                    $properties = json_decode($json, true);
 
-                    if (
-                        isset(self::$pid) && isset(self::$signaledAt)
-                        && posix_getsid(self::$pid) !== false
-                    ) {
-                        if ((time() - self::$signaledAt) < 30) {
-                            return true;
-                        } else {
-                            posix_kill(self::$pid, SIGTERM);
-                            sleep(5);
+                    if (is_array($properties)) {
+                        foreach ($properties as $name => $value) {
+                            self::$$name = $value;
+                        }
 
-                            if (posix_getsid(self::$pid) !== false) {
-                                posix_kill(self::$pid, SIGKILL);
+                        if (
+                            isset(self::$pid) && isset(self::$signaledAt)
+                            && posix_getsid(self::$pid) !== false
+                        ) {
+                            if ((time() - self::$signaledAt) < 30) {
+                                return true;
+                            } else {
+                                posix_kill(self::$pid, SIGTERM);
+                                sleep(5);
+
+                                if (posix_getsid(self::$pid) !== false) {
+                                    posix_kill(self::$pid, SIGKILL);
+                                }
                             }
                         }
                     }
@@ -57,9 +63,15 @@ class Process
      */
     public static function lock(): void
     {
-        self::$pid = getmypid() ?: 0;
-        self::$signaledAt = time();
-        self::updateLockfile();
+        $processId = getmypid();
+
+        if ($processId !== false) {
+            self::$pid = $processId;
+            self::$signaledAt = time();
+            self::updateLockfile();
+        } else {
+            throw new \RuntimeException('Couldn\'t get process ID');
+        }
     }
 
     /**
@@ -71,20 +83,27 @@ class Process
         if (isset(self::$pid)) {
             self::$signaledAt = time();
             self::updateLockfile();
+        } else {
+            throw new \RuntimeException('Process is not locked');
         }
     }
 
     /**
      * Gets process ID
+     * @return int Returns process ID
      */
     public static function getPid(): int
     {
         if (isset(self::$pid)) {
             return self::$pid;
         }
-        return 0;
+        throw new \RuntimeException('Process is not locked');
     }
 
+    /**
+     * Updates lockfile
+     * @return void
+     */
     private static function updateLockfile(): void
     {
         $class = new \ReflectionClass(self::class);

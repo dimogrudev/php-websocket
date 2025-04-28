@@ -5,7 +5,7 @@ Lightweight and minimalistic.
 
 ## Requirements
 * *NIX (optional for process locking)
-* PHP 7.4
+* PHP 8.4
 
 > [!IMPORTANT]
 > Most shared hosting providers block ports for any third-party usage, so you will likely have to use a VPS or a dedicated server for running websockets.

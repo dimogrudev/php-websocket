@@ -21,31 +21,45 @@ $server->on('serverError', function (string $errstr) {
     echo "\n{$errstr}";
 });
 $server->on('clientConnect', function (Client $client) {
-    echo "\n" . $client->getIpAddr() . " (#" . $client->getId() . ") connected";
+    echo "\n{$client->ipAddr} (#{$client->id}) connected";
 });
 $server->on('clientDisconnect', function (Client $client) {
-    echo "\n" . $client->getIpAddr() . " (#" . $client->getId() . ") disconnected";
+    echo "\n{$client->ipAddr} (#{$client->id}) disconnected";
 });
 $server->on('handshakePerform', function (Client $client) {
-    echo "\nHandshake with #" . $client->getId() . " successfully performed";
+    echo "\nHandshake with #{$client->id} successfully performed";
 });
 $server->on('messageReceive', function (Client $client, string $message) use ($server) {
-    $ipAddr = $client->getIpAddr();
-    $streamId = $client->getId();
-
-    echo "\n{$ipAddr} (#{$streamId}) says '{$message}'";
+    echo "\n{$client->ipAddr} (#{$client->id}) says '{$message}'";
 
     if ($message == '/stop') {
         $server->stop();
     } else if ($message == '/memusage') {
-        $client->sendMessage((memory_get_usage() / 1000) . ' KB');
+        $units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+        $bytes = memory_get_usage();
+
+        $pow = floor(
+            log($bytes) / log(1024)
+        );
+
+        $client->sendMessage(
+            sprintf('%.2f %s', round($bytes / pow(1024, $pow), 2), $units[min($pow, count($units) - 1)])
+        );
     } else if ($message == '/online') {
-        $client->sendMessage($server->getOnline() . " user(s)");
+        $client->sendMessage("{$server->online} user(s)");
     } else if ($message == '/uptime') {
-        $uptime = $server->getUptime();
-        $client->sendMessage(sprintf('%02d:%02d:%02d', $uptime / 3600, floor($uptime / 60) % 60, $uptime % 60));
+        $uptime = $server->uptime;
+        $client->sendMessage(
+            sprintf('%02d:%02d:%02d', $uptime / 3600, floor($uptime / 60) % 60, $uptime % 60)
+        );
     } else {
-        $client->sendMessageToAll($server->getClients(), "{$ipAddr} (#{$streamId}): {$message}");
+        $currentId = $client->id;
+
+        foreach ($server->getClients() as $serverClient) {
+            if ($serverClient->id != $currentId) {
+                $serverClient->sendMessage("{$client->ipAddr} (#{$currentId}): {$message}");
+            }
+        }
     }
 });
 
