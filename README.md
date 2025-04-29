@@ -29,7 +29,7 @@ If you want to stop the WebSocket server you can use the following commands (*NI
 2. Use `sudo kill -15 {pid}` to terminate the process, where `{pid}` is the PID.
 
 ## Settings
-* `transport` — transport layer protocol (use **tcp** for a non-secure websocket and **tlsv1.3** for a secure one).
+* `transport` — transport layer protocol (use **tcp** for a non-secure websocket and **tls** for a secure one).
 * `host` — server host (**0.0.0.0** by default).
 * `port` — server port (choose a free one from 1024 to 49151).
 * `enableSsl` — enables SSL/TLS encryption.
