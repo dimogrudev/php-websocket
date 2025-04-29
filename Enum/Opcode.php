@@ -2,12 +2,31 @@
 
 namespace Enum;
 
+/**
+ * Represents opcode registry
+ * @see https://datatracker.ietf.org/doc/html/rfc6455#section-11.8
+ */
 enum Opcode: int
 {
-    case CONTINUATION       = 0;
-    case TEXT               = 1;
-    case BINARY             = 2;
-    case CONNECTION_CLOSE   = 8;
-    case PING               = 9;
-    case PONG               = 10;
+    case CONTINUATION   = 0x0;
+    case TEXT           = 0x1;
+    case BINARY         = 0x2;
+    case CLOSE          = 0x8;
+    case PING           = 0x9;
+    case PONG           = 0xA;
+
+    /**
+     * Determines whether opcode denotes control frame
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     */
+    public function isControl(): bool
+    {
+        if (
+            $this == self::CLOSE
+            || $this == self::PING || $this == self::PONG
+        ) {
+            return true;
+        }
+        return false;
+    }
 }

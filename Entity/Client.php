@@ -9,8 +9,10 @@ use Enum\Opcode;
  */
 final class Client
 {
-    const int MAX_HEADERS_LENGTH    = 4096;
     const string WEBSOCKET_GUID     = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+
+    const int MAX_HEADERS_LENGTH    = 1024;
+    const int MAX_BUFFER_SIZE       = 8;
 
     const int TIMEOUT_PING_RESPONSE = 10000;
     const int TIMEOUT_HANDSHAKE     = 10000;
@@ -27,12 +29,13 @@ final class Client
 
     /** @var bool $connected Client connected */
     private(set) bool $connected    = true;
-    /** @var bool $pongExpected Client needs to answer ping message */
-    private(set) bool $pongExpected = false;
     /** @var bool $handshake Handshake performed */
     private(set) bool $handshake    = false;
 
-    /** @var Message[] $buffer Messages buffer */
+    /** @var Frame $pingFrame Ping frame sent to client */
+    private Frame $pingFrame;
+
+    /** @var Frame[] $buffer Fragmentation buffer */
     private array $buffer           = [];
 
     /**
@@ -102,14 +105,14 @@ final class Client
 
     /**
      * Checks client timeouts
-     * @return bool Returns **TRUE** if client is still connected, **FALSE** otherwise
+     * @return bool Returns **TRUE** if client is still connected or **FALSE** otherwise
      */
     public function checkTimeouts(): bool
     {
         /** @var float $microtime */
         $microtime = microtime(true);
 
-        if ($this->pongExpected) {
+        if (isset($this->pingFrame)) {
             if (($microtime - $this->pingedAt) * 1000 > self::TIMEOUT_PING_RESPONSE) {
                 $this->disconnect();
                 return false;
@@ -127,34 +130,51 @@ final class Client
 
     /**
      * Receives text message from client
-     * @return string|null Returns text message or **NULL** if it cannot be obtained (in case of another opcode or it is not final)
+     * @return string|null Returns text message or **NULL** on control or fragmented frame
      */
     public function receiveMessage(): ?string
     {
-        $message = Message::receive($this->stream);
+        $frame = Frame::receive($this->stream);
 
-        $this->buffer[] = $message;
+        if ($frame->opcode->isControl()) {
+            if ($frame->opcode == Opcode::CLOSE) {
+                $this->disconnect();
+            } else if ($frame->opcode == Opcode::PING) {
+                $pongFrame = new Frame($this->stream, true, Opcode::PONG, $frame->payload);
+                $pongFrame->send();
+            } else if ($frame->opcode == Opcode::PONG) {
+                if (
+                    isset($this->pingFrame)
+                    && $this->pingFrame->payload === $frame->payload
+                ) {
+                    unset($this->pingFrame);
+                }
+            }
+        } else {
+            if ($frame->opcode == Opcode::CONTINUATION) {
+                $bufferSize = count($this->buffer);
 
-        if ($message->final) {
-            $msgOpcode = Opcode::TEXT;
-            $msgText = '';
+                if ($bufferSize == 0 || $bufferSize >= self::MAX_BUFFER_SIZE) {
+                    $this->disconnect();
+                    return null;
+                }
 
-            foreach ($this->buffer as $message) {
-                $msgOpcode = $message->opcode;
-                $msgText .= $message->payload ?? '';
+                $this->buffer[] = $frame;
+            } else {
+                $this->buffer = [
+                    $frame
+                ];
             }
 
-            $this->buffer = [];
+            if ($frame->final) {
+                $payload = '';
 
-            if ($msgOpcode == Opcode::CONNECTION_CLOSE) {
-                $this->disconnect();
-            } else if ($msgOpcode == Opcode::PING) {
-                $pongMsg = new Message($this->stream, true, Opcode::PONG);
-                $pongMsg->send();
-            } else if ($msgOpcode == Opcode::PONG) {
-                $this->pongExpected = false;
-            } else {
-                return $msgText;
+                foreach ($this->buffer as $bufferedFrame) {
+                    $payload .= $bufferedFrame->payload ?? '';
+                }
+                $this->buffer = [];
+
+                return $payload;
             }
         }
 
@@ -168,8 +188,8 @@ final class Client
      */
     public function sendMessage(string $text): void
     {
-        $message = new Message($this->stream, true, Opcode::TEXT, $text);
-        $message->send();
+        $textFrame = new Frame($this->stream, true, Opcode::TEXT, $text);
+        $textFrame->send();
     }
 
     /**
@@ -178,13 +198,10 @@ final class Client
      */
     public function ping(): void
     {
-        if (!$this->pongExpected) {
-            $this->pingedAt = microtime(true);
-            $this->pongExpected = true;
+        $this->pingedAt = microtime(true);
 
-            $pingMsg = new Message($this->stream, true, Opcode::PING);
-            $pingMsg->send();
-        }
+        $this->pingFrame = new Frame($this->stream, true, Opcode::PING, random_bytes(16));
+        $this->pingFrame->send();
     }
 
     /**
