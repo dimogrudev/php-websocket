@@ -2,20 +2,19 @@
 
 namespace Entity;
 
-use Enum\Opcode;
+use Registry\Opcode;
 
 /**
  * Represents client entity
  */
 final class Client
 {
-    const string WEBSOCKET_GUID     = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+    const string WEBSOCKET_GUID             = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
-    const int MAX_HEADERS_LENGTH    = 1024;
-    const int MAX_BUFFER_SIZE       = 8;
+    const int MAX_BUFFER_SIZE               = 8;
 
-    const int TIMEOUT_PING_RESPONSE = 10000;
-    const int TIMEOUT_HANDSHAKE     = 10000;
+    const int TIMEOUT_PING_RESPONSE         = 4000;
+    const int TIMEOUT_HANDSHAKE             = 4000;
 
     /** @var int $id Client stream ID */
     public int $id {
@@ -27,16 +26,21 @@ final class Client
     /** @var float $pingedAt Time of ping */
     private float $pingedAt;
 
-    /** @var bool $connected Client connected */
-    private(set) bool $connected    = true;
-    /** @var bool $handshake Handshake performed */
-    private(set) bool $handshake    = false;
+    /** @var bool $connected Connection established */
+    private(set) bool $connected            = true;
+    /** @var bool $handshakePerformed Handshake performed */
+    private(set) bool $handshakePerformed   = false;
+
+    /** @var bool $requestReceived Request received */
+    private(set) bool $requestReceived      = false;
+    /** @var bool $requestAccepted Request accepted by server */
+    private(set) bool $requestAccepted      = false;
 
     /** @var Frame $pingFrame Ping frame sent to client */
     private Frame $pingFrame;
 
     /** @var Frame[] $buffer Fragmentation buffer */
-    private array $buffer           = [];
+    private array $buffer                   = [];
 
     /**
      * Class constructor
@@ -68,36 +72,51 @@ final class Client
     }
 
     /**
+     * Tries to receive request data from client
+     * @return Request|null Returns request entity or **NULL** on failure
+     */
+    public function receiveRequest(): ?Request
+    {
+        if (!$this->requestReceived) {
+            $request = Request::receive($this->stream);
+
+            if ($request) {
+                $this->requestReceived = true;
+                return $request;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Confirms request acceptance
+     * @return void
+     */
+    public function acceptRequest(): void
+    {
+        if ($this->requestReceived) {
+            $this->requestAccepted = true;
+        }
+    }
+
+    /**
      * Tries to perform handshake with the client
+     * @param string $secKey Security key
      * @return bool Returns **TRUE** on success, **FALSE** otherwise
      */
-    public function performHandshake(): bool
+    public function performHandshake(string $secKey): bool
     {
-        $buffer = fread($this->stream, self::MAX_HEADERS_LENGTH);
+        if (!$this->handshakePerformed) {
+            $secAccept = base64_encode(
+                pack('H*', sha1($secKey . self::WEBSOCKET_GUID))
+            );
+            $upgrade = "HTTP/1.1 101 Switching Protocols\r\n" .
+                "Upgrade: websocket\r\n" .
+                "Connection: Upgrade\r\n" .
+                "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
 
-        if ($buffer) {
-            $headers = [];
-
-            foreach ((preg_split('/\r\n/', $buffer) ?: []) as $line) {
-                $line = rtrim($line);
-                if (preg_match('/\A(\S+): (.*)\z/', $line, $matches)) {
-                    $headers[$matches[1]] = $matches[2];
-                }
-            }
-
-            if (isset($headers['Sec-WebSocket-Key'])) {
-                $secKey = $headers['Sec-WebSocket-Key'];
-                $secAccept = base64_encode(
-                    pack('H*', sha1($secKey . self::WEBSOCKET_GUID))
-                );
-
-                $upgrade  = "HTTP/1.1 101 Switching Protocols\r\n" .
-                    "Upgrade: websocket\r\n" .
-                    "Connection: Upgrade\r\n" .
-                    "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
-
-                return $this->handshake = @fwrite($this->stream, $upgrade) !== false;
-            }
+            return $this->handshakePerformed = @fwrite($this->stream, $upgrade) !== false;
         }
 
         return false;
@@ -118,7 +137,7 @@ final class Client
                 return false;
             }
         }
-        if (!$this->handshake) {
+        if (!$this->handshakePerformed) {
             if (($microtime - $this->connectedAt) * 1000 > self::TIMEOUT_HANDSHAKE) {
                 $this->disconnect();
                 return false;

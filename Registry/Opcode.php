@@ -1,6 +1,6 @@
 <?php
 
-namespace Enum;
+namespace Registry;
 
 /**
  * Represents opcode registry
@@ -16,7 +16,7 @@ enum Opcode: int
     case PONG           = 0xA;
 
     /**
-     * Determines whether opcode denotes control frame
+     * Determines whether opcode denotes control frame or not
      * @return bool Returns **TRUE** on success or **FALSE** otherwise
      */
     public function isControl(): bool

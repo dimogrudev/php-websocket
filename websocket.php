@@ -26,9 +26,6 @@ $server->on('clientConnect', function (Client $client) {
 $server->on('clientDisconnect', function (Client $client) {
     echo "\n{$client->ipAddr} (#{$client->id}) disconnected";
 });
-$server->on('handshakePerform', function (Client $client) {
-    echo "\nHandshake with #{$client->id} successfully performed";
-});
 $server->on('messageReceive', function (Client $client, string $message) use ($server) {
     echo "\n{$client->ipAddr} (#{$client->id}) says '{$message}'";
 

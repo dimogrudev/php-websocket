@@ -140,9 +140,18 @@ final class Server
                         $client = &$this->clients[$streamId];
 
                         if ($ipAddr) {
-                            if (!$client->handshake) {
-                                if ($client->performHandshake()) {
-                                    $this->triggerCallback('handshakePerform', [$client]);
+                            if (!$client->handshakePerformed) {
+                                $request = $client->receiveRequest();
+
+                                if ($request) {
+                                    $this->online++;
+                                    $this->triggerCallback('clientConnect', [$client]);
+
+                                    $client->acceptRequest();
+                                    $secKey = $request->header('sec-websocket-key');
+                                    if (!$secKey || !$client->performHandshake($secKey)) {
+                                        $client->disconnect();
+                                    }
                                 } else {
                                     $client->disconnect();
                                 }
@@ -156,7 +165,7 @@ final class Server
                             $client->disconnect();
                         }
 
-                        if (!$client->connected) {
+                        if (!$client->connected && $client->requestAccepted) {
                             $this->online--;
                             $this->triggerCallback('clientDisconnect', [$client]);
                         }
@@ -176,7 +185,7 @@ final class Server
 
                         if ($connected) {
                             $connected = $client->checkTimeouts();
-                            if (!$connected) {
+                            if (!$connected && $client->requestAccepted) {
                                 $this->online--;
                                 $this->triggerCallback('clientDisconnect', [$client]);
                             }
@@ -195,7 +204,7 @@ final class Server
             if (($microtime - $pingSent) * 1000 >= self::INTERVAL_PING) {
                 foreach ($this->clients as $streamId => &$client) {
                     if ($streamId != $serverId) {
-                        if ($client->stream && $client->handshake) {
+                        if ($client->stream && $client->handshakePerformed) {
                             $client->ping();
                         }
                     }
@@ -222,9 +231,9 @@ final class Server
     private function init(): bool
     {
         if ($this->sslContext) {
-            $this->stream = stream_socket_server("{$this->transport}://{$this->host}:{$this->port}", $errno, $errstr, context: $this->sslContext) ?: null;
+            $this->stream = @stream_socket_server("{$this->transport}://{$this->host}:{$this->port}", $errno, $errstr, context: $this->sslContext) ?: null;
         } else {
-            $this->stream = stream_socket_server("{$this->transport}://{$this->host}:{$this->port}", $errno, $errstr) ?: null;
+            $this->stream = @stream_socket_server("{$this->transport}://{$this->host}:{$this->port}", $errno, $errstr) ?: null;
         }
 
         $serverInit = (bool)$this->stream;
@@ -261,9 +270,6 @@ final class Server
 
             if ($ipAddr) {
                 $this->clients[$streamId] = new Client($incomingStream, $ipAddr);
-                $this->online++;
-
-                $this->triggerCallback('clientConnect', [$this->clients[$streamId]]);
                 return true;
             } else {
                 @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);
@@ -303,7 +309,7 @@ final class Server
             foreach ($this->clients as $streamId => $client) {
                 if (
                     $streamId != $serverId
-                    && $client->connected && $client->handshake
+                    && $client->connected && $client->handshakePerformed
                 ) {
                     $clients[] = $client;
                 }
