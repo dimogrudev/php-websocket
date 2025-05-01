@@ -158,9 +158,10 @@ final class Server
                                     $client->disconnect();
                                 }
                             } else {
-                                $message = $client->receiveMessage();
-                                if ($message) {
-                                    $this->triggerCallback('messageReceive', [$client, $message]);
+                                $data = $client->receiveData();
+
+                                if (is_string($data)) {
+                                    $this->triggerCallback('dataReceive', [$client, $data]);
                                 }
                             }
                         } else {

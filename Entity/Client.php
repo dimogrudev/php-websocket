@@ -177,10 +177,10 @@ final class Client
     }
 
     /**
-     * Receives text message from client
-     * @return string|null Returns text message or **NULL** on control or fragmented frame
+     * Receives data from client
+     * @return string|null Returns data or **NULL** on control or fragmented frame
      */
-    public function receiveMessage(): ?string
+    public function receiveData(): ?string
     {
         $frame = Frame::receive($this->stream);
 
@@ -230,14 +230,25 @@ final class Client
     }
 
     /**
-     * Sends text message to client
-     * @param string $text Text message
+     * Sends textual data to client
+     * @param string $data Textual data
      * @return void
      */
-    public function sendMessage(string $text): void
+    public function sendTextualData(string $data): void
     {
-        $textFrame = new Frame($this->stream, true, Opcode::TEXT, $text);
+        $textFrame = new Frame($this->stream, true, Opcode::TEXT, $data);
         $textFrame->send();
+    }
+
+    /**
+     * Sends binary data to client
+     * @param string $data Binary data
+     * @return void
+     */
+    public function sendBinaryData(string $data): void
+    {
+        $binaryFrame = new Frame($this->stream, true, Opcode::BINARY, $data);
+        $binaryFrame->send();
     }
 
     /**
