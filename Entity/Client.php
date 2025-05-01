@@ -3,6 +3,7 @@
 namespace Entity;
 
 use Registry\Opcode;
+use Registry\StatusCode;
 
 /**
  * Represents client entity
@@ -120,6 +121,34 @@ final class Client
         }
 
         return false;
+    }
+
+    /**
+     * Sends redirection header to client
+     * @return void
+     */
+    public function redirect(StatusCode\Redirection $code, string $location): void
+    {
+        if (!$this->handshakePerformed) {
+            $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
+                "Location: $location\r\n\r\n";
+            @fwrite($this->stream, $header);
+        }
+    }
+
+    /**
+     * Sends error header to client
+     * @return void
+     */
+    public function error(StatusCode\ClientError $code): void
+    {
+        if (!$this->handshakePerformed) {
+            $date = gmdate('D, d M Y H:i:s T');
+            $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
+                "Date: $date\r\n\r\n";
+
+            @fwrite($this->stream, $header);
+        }
     }
 
     /**

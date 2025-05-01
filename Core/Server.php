@@ -4,6 +4,7 @@ namespace Core;
 
 use Closure;
 use Entity\Client;
+use Registry\StatusCode;
 
 /**
  * Represents main server class
@@ -153,6 +154,7 @@ final class Server
                                         $client->disconnect();
                                     }
                                 } else {
+                                    $client->error(StatusCode\ClientError::BAD_REQUEST);
                                     $client->disconnect();
                                 }
                             } else {
