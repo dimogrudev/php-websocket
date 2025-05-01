@@ -2,7 +2,8 @@
 
 namespace Entity;
 
-use Enum\Opcode;
+use Error;
+use Registry\Opcode;
 
 /**
  * Represents frame entity
@@ -33,16 +34,12 @@ final class Frame
     /**
      * Receives frame from stream 
      * @param resource $stream Source stream
-     * @return self Returns frame entity
+     * @return self Returns frame instance
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-6.2
      */
     public static function receive($stream): self
     {
         if (self::receiveHeader($stream, $final, $opcode, $masked, $length)) {
-            /**
-             * @var Opcode $opcode
-             * @var int $length
-             */
             if ($length <= self::MAX_TOTAL_LENGTH) {
                 $maskingKey = null;
                 if ($masked) {
@@ -92,12 +89,12 @@ final class Frame
      * Receives frame header from stream
      * @param resource $stream Source stream
      * @param bool &$final Final frame
-     * @param Opcode|null &$opcode Frame opcode or **NULL** if it cannot be obtained
+     * @param Opcode &$opcode Frame opcode
      * @param bool &$masked Frame data is masked
-     * @param int|null &$length Frame data length or **NULL** if it cannot be obtained
+     * @param int &$length Frame data length
      * @return bool Returns **TRUE** on success or **FALSE** otherwise
      */
-    private static function receiveHeader($stream, &$final = true, &$opcode = null, &$masked = false, &$length = null): bool
+    private static function receiveHeader($stream, &$final, &$opcode, &$masked, &$length): bool
     {
         $header = self::readFromStream($stream, 2);
 
@@ -107,50 +104,52 @@ final class Frame
             if ($bytes) {
                 // FIN (1 bit)
                 $final = (bool)($bytes[1] & 0b10000000);
-                // Opcode (4 bits)
-                $opcode = Opcode::tryFrom($bytes[1] & 0b00001111);
+
+                try {
+                    // Opcode (4 bits)
+                    $opcode = Opcode::from($bytes[1] & 0b00001111);
+                } catch (Error) {
+                    return false;
+                }
 
                 // Mask (1 bit)
                 $masked = (bool)($bytes[2] & 0b10000000);
                 // Payload length (7 bits)
                 $length = $bytes[2] & 0b01111111;
 
-                if ($opcode !== null) {
-                    $isControl = $opcode->isControl();
+                // Whether control frame or not
+                $isControl = $opcode->isControl();
+                // Control frames must not be fragmented
+                if (!$final && $isControl) {
+                    return false;
+                }
 
-                    // Control frames must not be fragmented
-                    if (!$final && $isControl) {
-                        return false;
-                    }
+                if ($length > 125) {
+                    // Only non-control frames can have extended length
+                    if (!$isControl) {
+                        $extendedLength = null;
 
-                    if ($length > 125) {
-                        // Only non-control frames can have extended length
-                        if (!$isControl) {
-                            $extendedLength = null;
-
-                            if ($length == 127) {
-                                $extendedData = self::readFromStream($stream, 8);
-                                if ($extendedData) {
-                                    // Extended payload length (64 bits)
-                                    $extendedLength = (unpack('J', $extendedData) ?: [1 => null])[1];
-                                }
-                            } else if ($length == 126) {
-                                $extendedData = self::readFromStream($stream, 2);
-                                if ($extendedData) {
-                                    // Extended payload length (16 bits)
-                                    $extendedLength = (unpack('n', $extendedData) ?: [1 => null])[1];
-                                }
+                        if ($length == 127) {
+                            $extendedData = self::readFromStream($stream, 8);
+                            if ($extendedData) {
+                                // Extended payload length (64 bits)
+                                $extendedLength = (unpack('J', $extendedData) ?: [1 => null])[1];
                             }
-
-                            $length = $extendedLength;
-
-                            if ($length !== null) {
-                                return true;
+                        } else if ($length == 126) {
+                            $extendedData = self::readFromStream($stream, 2);
+                            if ($extendedData) {
+                                // Extended payload length (16 bits)
+                                $extendedLength = (unpack('n', $extendedData) ?: [1 => null])[1];
                             }
                         }
-                    } else {
-                        return true;
+
+                        if (is_int($extendedLength)) {
+                            $length = $extendedLength;
+                            return true;
+                        }
                     }
+                } else {
+                    return true;
                 }
             }
         }
