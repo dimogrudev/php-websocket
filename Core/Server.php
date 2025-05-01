@@ -85,13 +85,15 @@ final class Server
      * Triggers server callback
      * @param string $callback Event name
      * @param array $args Callback arguments
-     * @return void
+     * @return string|float|int|bool Returns callback result
      */
-    private function triggerCallback(string $callback, array $args): void
+    private function triggerCallback(string $callback, array $args): string|float|int|bool
     {
         if (isset($this->callbacks[$callback])) {
-            $this->callbacks[$callback](...$args);
+            $result = $this->callbacks[$callback](...$args);
+            return ($result !== null) ? $result : true;
         }
+        return true;
     }
 
     /**
@@ -144,9 +146,8 @@ final class Server
                             if (!$client->handshakePerformed) {
                                 $request = $client->receiveRequest();
 
-                                if ($request) {
+                                if ($request && $this->triggerCallback('clientConnect', [$client, $request])) {
                                     $this->online++;
-                                    $this->triggerCallback('clientConnect', [$client]);
 
                                     $client->acceptRequest();
                                     $secKey = $request->header('sec-websocket-key');
@@ -161,7 +162,9 @@ final class Server
                                 $data = $client->receiveData();
 
                                 if (is_string($data)) {
-                                    $this->triggerCallback('dataReceive', [$client, $data]);
+                                    if (!$this->triggerCallback('dataReceive', [$client, $data])) {
+                                        $client->disconnect();
+                                    }
                                 }
                             }
                         } else {

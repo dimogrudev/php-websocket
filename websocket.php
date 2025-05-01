@@ -1,6 +1,7 @@
 <?php
 
 use Entity\Client;
+use Entity\Request;
 
 require __DIR__ . '/autoload.php';
 
@@ -17,16 +18,20 @@ set_time_limit(0);
 $config = require(__DIR__ . '/config.php');
 $server = new Core\Server($config);
 
-$server->on('serverError', function (string $errstr) {
+$server->on('serverError', function (string $errstr): void {
     echo "\n{$errstr}";
 });
-$server->on('clientConnect', function (Client $client) {
-    echo "\n{$client->ipAddr} (#{$client->id}) connected";
+$server->on('clientConnect', function (Client $client, Request $request): bool {
+    if ($request->header('origin')) {
+        echo "\n{$client->ipAddr} (#{$client->id}) connected";
+        return true;
+    }
+    return false;
 });
-$server->on('clientDisconnect', function (Client $client) {
+$server->on('clientDisconnect', function (Client $client): void {
     echo "\n{$client->ipAddr} (#{$client->id}) disconnected";
 });
-$server->on('dataReceive', function (Client $client, string $data) use ($server) {
+$server->on('dataReceive', function (Client $client, string $data) use ($server): bool {
     if (mb_check_encoding($data, 'UTF-8')) {
         echo "\n{$client->ipAddr} (#{$client->id}) says '{$data}'";
 
@@ -59,7 +64,11 @@ $server->on('dataReceive', function (Client $client, string $data) use ($server)
                 }
             }
         }
+
+        return true;
     }
+
+    return false;
 });
 
 $server->start();
