@@ -13,7 +13,6 @@ final class Server
 {
     const int INTERVAL_CHECK_TIMEOUTS   = 2000;
     const int INTERVAL_PING             = 20000;
-    const int INTERVAL_PROCESS_SIGNAL   = 10000;
 
     /** @var string $transport Transport layer protocol */
     private string $transport;
@@ -49,6 +48,8 @@ final class Server
 
     /** @var array<string, Closure> $callbacks Server callbacks */
     private array $callbacks            = [];
+    /** @var array{function: Closure, interval: int, calledAt: float}[] $timers Server timers */
+    private array $timers               = [];
 
     /**
      * @param array $config Configuration
@@ -68,6 +69,8 @@ final class Server
                 'verify_peer'           => false,
             ]]);
         }
+
+        $this->registerInternalTimers();
     }
 
     /**
@@ -97,6 +100,82 @@ final class Server
     }
 
     /**
+     * Registers server timer
+     * @param int $interval Timer interval
+     * @param Closure $function Callback function
+     * @return void
+     */
+    public function timer(int $interval, Closure $function): void
+    {
+        /** @var float $microtime */
+        $microtime = microtime(true);
+
+        $this->timers[] = [
+            'function'  => $function,
+            'interval'  => $interval,
+            'calledAt'  => $microtime
+        ];
+    }
+
+    /**
+     * Checks server timers
+     * @return void
+     */
+    private function checkTimers(): void
+    {
+        /** @var float $microtime */
+        $microtime = microtime(true);
+
+        foreach ($this->timers as &$timer) {
+            if (($microtime - $timer['calledAt']) * 1000 >= $timer['interval']) {
+                $timer['function']();
+                $timer['calledAt'] = $microtime;
+            }
+        }
+    }
+
+    /**
+     * Registers internal timers
+     * @return void
+     */
+    private function registerInternalTimers(): void
+    {
+        $this->timer(self::INTERVAL_CHECK_TIMEOUTS, function (): void {
+            $serverId = intval($this->stream);
+
+            foreach ($this->clients as $streamId => &$client) {
+                if ($streamId != $serverId) {
+                    $connected = $client->connected;
+
+                    if ($connected) {
+                        $connected = $client->checkTimeouts();
+                        if (!$connected && $client->requestAccepted) {
+                            $this->online--;
+                            $this->triggerCallback('clientDisconnect', [$client]);
+                        }
+                    }
+
+                    if (!$connected) {
+                        unset($this->clients[$streamId]);
+                    }
+                }
+            }
+        });
+
+        $this->timer(self::INTERVAL_PING, function (): void {
+            $serverId = intval($this->stream);
+
+            foreach ($this->clients as $streamId => &$client) {
+                if ($streamId != $serverId) {
+                    if ($client->stream && $client->handshakePerformed) {
+                        $client->ping();
+                    }
+                }
+            }
+        });
+    }
+
+    /**
      * Starts server
      * @return void
      */
@@ -119,13 +198,6 @@ final class Server
             $serverId => new Client($this->stream, $this->host)
         ];
         $this->online = 0;
-
-        /** @var float $microtime */
-        $microtime = microtime(true);
-
-        $timeoutsChecked = $microtime;
-        $pingSent = $microtime;
-        $processSignalSent = $microtime;
 
         while ($this->running) {
             $read = $this->getStreams();
@@ -181,49 +253,7 @@ final class Server
                 }
             }
 
-            /** @var float $microtime */
-            $microtime = microtime(true);
-
-            if (($microtime - $timeoutsChecked) * 1000 >= self::INTERVAL_CHECK_TIMEOUTS) {
-                foreach ($this->clients as $streamId => &$client) {
-                    if ($streamId != $serverId) {
-                        $connected = $client->connected;
-
-                        if ($connected) {
-                            $connected = $client->checkTimeouts();
-                            if (!$connected && $client->requestAccepted) {
-                                $this->online--;
-                                $this->triggerCallback('clientDisconnect', [$client]);
-                            }
-                        }
-
-                        if (!$connected) {
-                            unset($this->clients[$streamId]);
-                        }
-                    }
-                }
-
-                unset($client);
-                $timeoutsChecked = $microtime;
-            }
-
-            if (($microtime - $pingSent) * 1000 >= self::INTERVAL_PING) {
-                foreach ($this->clients as $streamId => &$client) {
-                    if ($streamId != $serverId) {
-                        if ($client->stream && $client->handshakePerformed) {
-                            $client->ping();
-                        }
-                    }
-                }
-
-                unset($client);
-                $pingSent = $microtime;
-            }
-
-            if (($microtime - $processSignalSent) * 1000 >= self::INTERVAL_PROCESS_SIGNAL) {
-                Modules\Process::signal();
-                $processSignalSent = $microtime;
-            }
+            $this->checkTimers();
         }
 
         @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);

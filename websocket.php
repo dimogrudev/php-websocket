@@ -1,23 +1,32 @@
 <?php
 
+use Core\Modules\ {
+    Process
+};
 use Entity\Client;
 use Entity\Request;
 
 require __DIR__ . '/autoload.php';
 
-if (Core\Modules\Process::isLocked()) {
+if (Process::isLocked()) {
     echo "\nProcess locked";
     exit;
 }
 
-Core\Modules\Process::lock();
-echo "\nRun " . \Core\Modules\Process::getPid();
+Process::lock();
+echo "\nRun " . Process::getPid();
 
 set_time_limit(0);
 
 $config = require(__DIR__ . '/config.php');
 $server = new Core\Server($config);
 
+// Timers
+$server->timer(10000, function (): void {
+    Process::signal();
+});
+
+// Callbacks
 $server->on('serverError', function (string $errstr): void {
     echo "\n{$errstr}";
 });
