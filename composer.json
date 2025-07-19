@@ -1,0 +1,24 @@
+{
+    "name": "dimogrudev/php-websocket",
+    "description": "No-dependency implementation of WebSocket server in PHP",
+    "keywords": [
+        "websocket",
+        "server",
+        "rfc6455"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Vadim Grudev",
+            "email": "grudev@release.com.ru"
+        }
+    ],
+    "require": {
+        "php": "^8.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "WebSocket\\": "src/"
+        }
+    }
+}
