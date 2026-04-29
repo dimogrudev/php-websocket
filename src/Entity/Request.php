@@ -7,8 +7,8 @@ namespace WebSocket\Entity;
  */
 class Request
 {
-    const string REGEX_REQUEST      = '/^(?:GET)\x20(.+)\x20(?:HTTP\/[\d\.]+)(?:\r\n|\n|\r)((?:\S+:\x20.*(?:\r\n|\n|\r))+)/';
-    const string REGEX_HEADERS      = '/(\S+):\x20(.*)(?:\r\n|\n|\r)/';
+    const string REGEX_REQUEST      = '/^GET\x20(.+)\x20HTTP\/1\.1\r\n((?:[^\r\n]+\r\n)+)\r\n$/';
+    const string REGEX_HEADERS      = '/([^:]+):\x20*(.*)\r\n/';
 
     /////////////////////////////////
 
@@ -56,7 +56,7 @@ class Request
         foreach ((preg_split('/;\x20?/', $cookieHeader) ?: []) as $cookie) {
             $cookie = urldecode($cookie);
 
-            if (preg_match('/^(.+)=(.+)$/', trim($cookie), $matches)) {
+            if (preg_match('/^([^=]+)=(.*)$/', trim($cookie), $matches)) {
                 $this->cookies[$matches[1]] = $matches[2];
             }
         }
