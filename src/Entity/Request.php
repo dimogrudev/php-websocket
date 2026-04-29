@@ -37,11 +37,7 @@ class Request
     private function parseQueryString(string $queryString): void
     {
         $this->params = [];
-
-        parse_str(
-            urldecode($queryString),
-            $this->params
-        );
+        parse_str($queryString, $this->params);
     }
 
     /**
