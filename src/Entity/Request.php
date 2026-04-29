@@ -7,8 +7,6 @@ namespace WebSocket\Entity;
  */
 class Request
 {
-    const int MAX_LENGTH            = 8192;
-
     const string REGEX_REQUEST      = '/^(?:GET)\x20(.+)\x20(?:HTTP\/[\d\.]+)(?:\r\n|\n|\r)((?:\S+:\x20.*(?:\r\n|\n|\r))+)/';
     const string REGEX_HEADERS      = '/(\S+):\x20(.*)(?:\r\n|\n|\r)/';
 
@@ -110,45 +108,46 @@ class Request
     }
 
     /**
-     * Receives request information
-     * @param resource $stream Source stream
+     * Parses request instance from raw header data
+     * @param string $raw Raw header data
      * @return self|null Returns request instance or **NULL** on failure
      */
-    public static function receive($stream): self|null
+    public static function parse(string $raw): ?self
     {
-        $buffer = fread($stream, self::MAX_LENGTH);
+        /** @var array<string, string> $urlParts */
+        $urlParts = [];
+        /** @var array<string, string> $headers */
+        $headers = [];
 
-        if ($buffer) {
-            if (
-                self::parseBuffer($buffer, $urlParts, $headers)
-                && self::checkRequiredHeaders($headers)
-            ) {
-                $entity = new self($urlParts['path'], $headers);
+        if (
+            self::parseRaw($raw, $urlParts, $headers)
+            && self::checkRequiredHeaders($headers)
+        ) {
+            $entity = new self($urlParts['path'], $headers);
 
-                if (isset($urlParts['query'])) {
-                    $entity->parseQueryString($urlParts['query']);
-                }
-                if (isset($headers['cookie'])) {
-                    $entity->parseCookies($headers['cookie']);
-                }
-
-                return $entity;
+            if (isset($urlParts['query'])) {
+                $entity->parseQueryString($urlParts['query']);
             }
+            if (isset($headers['cookie'])) {
+                $entity->parseCookies($headers['cookie']);
+            }
+
+            return $entity;
         }
 
         return null;
     }
 
     /**
-     * Parses raw buffer
-     * @param string $buffer Source buffer
+     * Parses raw header data
+     * @param string $raw Raw header data
      * @param array &$urlParts URL parts
      * @param array &$headers Headers
      * @return bool Returns **TRUE** on success or **FALSE** otherwise
      */
-    private static function parseBuffer(string $buffer, &$urlParts, &$headers): bool
+    private static function parseRaw(string $raw, &$urlParts, &$headers): bool
     {
-        if (preg_match(self::REGEX_REQUEST, $buffer, $matches)) {
+        if (preg_match(self::REGEX_REQUEST, $raw, $matches)) {
             $requestParts = array_combine(['url', 'headers'], array_slice($matches, 1));
 
             if ($requestParts) {

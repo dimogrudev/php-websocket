@@ -118,8 +118,8 @@ class Server
         $loopTimeoutMicro = $this->eventLoopTimeout * 1000;
 
         while ($this->running) {
-            $read = $this->getStreams();
-            $write = null;
+            $read = $this->getReadableStreams();
+            $write = $this->getWritableStreams();
             $except = null;
 
             if (stream_select($read, $write, $except, 0, $loopTimeoutMicro)) {
@@ -129,42 +129,45 @@ class Server
                     if ($streamId == $serverId) {
                         $this->acceptIncomingStream();
                     } else if (isset($this->clients[$streamId])) {
-                        $ipAddr = Client::extractIp($changingStream);
-                        $client = &$this->clients[$streamId];
+                        $client = $this->clients[$streamId];
 
-                        if ($ipAddr) {
+                        if ($client->pull()) {
                             if (!$client->handshakePerformed) {
                                 $request = $client->receiveRequest();
 
-                                if ($request && $this->triggerCallback(Callback::CLIENT_CONNECT, [$client, $request])) {
-                                    $this->online++;
+                                if ($request) {
+                                    if ($this->triggerCallback(Callback::CLIENT_CONNECT, [$client, $request])) {
+                                        $this->online++;
+                                        $client->acceptRequest();
 
-                                    $client->acceptRequest();
-                                    $secKey = $request->header('sec-websocket-key');
-                                    if (!$secKey || !$client->performHandshake($secKey)) {
+                                        $secKey = $request->header('sec-websocket-key');
+                                        if (!$secKey || !$client->performHandshake($secKey)) {
+                                            $client->disconnect();
+                                        }
+                                    } else {
+                                        $client->error(StatusCode\ClientError::FORBIDDEN);
                                         $client->disconnect();
                                     }
-                                } else {
-                                    $client->error(StatusCode\ClientError::BAD_REQUEST);
-                                    $client->disconnect();
                                 }
                             } else {
-                                $message = $client->receiveMessage($this->maxChunksPerFrame, $this->maxChunkLength);
-
-                                if ($message !== null) {
+                                while ($message = $client->receiveMessage()) {
                                     $this->triggerCallback(Callback::MESSAGE_RECEIVE, [$client, $message]);
                                 }
                             }
-                        } else {
-                            $client->disconnect();
                         }
 
                         if (!$client->connected && $client->requestAccepted) {
                             $this->online--;
                             $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
                         }
+                    }
+                }
 
-                        unset($client);
+                foreach ($write as $changingStream) {
+                    $streamId = intval($changingStream);
+
+                    if (isset($this->clients[$streamId])) {
+                        $this->clients[$streamId]->push();
                     }
                 }
             }
@@ -230,7 +233,7 @@ class Server
             $ipAddr = Client::extractIp($incomingStream);
 
             if ($ipAddr) {
-                $this->clients[$streamId] = new Client($incomingStream, $ipAddr, $this->maxFrameBufferSize);
+                $this->clients[$streamId] = new Client($incomingStream, $ipAddr, $this->maxFrameBufferSize, $this->maxChunksPerFrame, $this->maxChunkLength);
                 return true;
             } else {
                 @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);
@@ -244,12 +247,29 @@ class Server
      * Gets all active streams, including server stream
      * @return array<int, resource> Returns active streams
      */
-    private function getStreams(): array
+    private function getReadableStreams(): array
     {
         $streams = [];
 
         foreach ($this->clients as $streamId => $client) {
             if ($client->connected) {
+                $streams[$streamId] = $client->stream;
+            }
+        }
+
+        return $streams;
+    }
+
+    /**
+     * Gets all streams that have pending data in their write buffers
+     * @return array<int, resource> Returns streams ready for a write operation
+     */
+    private function getWritableStreams(): array
+    {
+        $streams = [];
+
+        foreach ($this->clients as $streamId => $client) {
+            if ($client->connected && $client->hasDataToWrite) {
                 $streams[$streamId] = $client->stream;
             }
         }

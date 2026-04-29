@@ -40,8 +40,18 @@ class Client
     /** @var Frame $pingFrame Ping frame sent to client */
     private Frame $pingFrame;
 
-    /** @var Frame[] $buffer Fragmentation buffer */
-    private array $buffer                   = [];
+    /** @var Frame[] $frameBuffer Fragmentation buffer */
+    private array $frameBuffer                   = [];
+
+    /** @var string $readBuffer Read buffer */
+    private string $readBuffer              = '';
+    /** @var string $writeBuffer Write buffer */
+    private string $writeBuffer             = '';
+
+    /** @var bool $hasDataToWrite Client has data in write buffer */
+    public bool $hasDataToWrite {
+        get => $this->writeBuffer !== '';
+    }
 
     /////////////////////////////////
 
@@ -49,12 +59,16 @@ class Client
      * @param resource $stream Client stream
      * @param string $ipAddr Client IP address
      * @param int $maxFrameBufferSize Maximum size of fragmentation buffer
+     * @param int $maxChunksPerFrame Maximum amount of data chunks per frame
+     * @param int $maxChunkLength Maximum size (in bytes) of each chunk
      * @return void
      */
     public function __construct(
         private(set) mixed $stream,
         private(set) string $ipAddr,
-        private int $maxFrameBufferSize = 8
+        private int $maxFrameBufferSize = 8,
+        private int $maxChunksPerFrame = 8,
+        private int $maxChunkLength = 1024
     ) {
         /** @var float $microtime */
         $microtime = microtime(true);
@@ -76,17 +90,101 @@ class Client
     }
 
     /**
+     * Pulls data from client's stream to read buffer
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     */
+    public function pull(): bool
+    {
+        if ($this->connected) {
+            $data = @fread($this->stream, $this->maxChunkLength);
+
+            if ($data === false || ($data === '' && feof($this->stream))) {
+                $this->disconnect();
+                return false;
+            }
+
+            $this->readBuffer .= $data;
+
+            if (mb_strlen($this->readBuffer, '8bit') > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
+                $this->disconnect();
+                return false;
+            }
+
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Pushes data from write buffer to client's stream
+     * @return void
+     */
+    public function push(): void
+    {
+        if ($this->connected && $this->hasDataToWrite) {
+            $written = @fwrite($this->stream, $this->writeBuffer);
+
+            if ($written !== false && $written > 0) {
+                $this->writeBuffer = mb_substr($this->writeBuffer, $written, null, '8bit');
+            }
+        }
+    }
+
+    /**
+     * Extracts raw data from read buffer
+     * @param int|null $length Maximum length of returned string
+     * @param int $offset Data offset in the buffer
+     * @return string Returns raw data string
+     */
+    public function readRaw(?int $length = null, int $offset = 0): string
+    {
+        return mb_substr($this->readBuffer, $offset, $length, '8bit');
+    }
+
+    /**
+     * Discards processed data from read buffer
+     * @param int $length Length of raw data to be removed
+     * @return void
+     */
+    public function discardReadData(int $length): void
+    {
+        $this->readBuffer = mb_substr($this->readBuffer, $length, null, '8bit');
+    }
+
+    /**
+     * Places raw data into write buffer for further sending
+     * @param string $data Raw data string
+     * @return void
+     */
+    public function sendRaw(string $data): void
+    {
+        $this->writeBuffer .= $data;
+    }
+
+    /**
      * Tries to receive request data from client
      * @return Request|null Returns request entity or **NULL** on failure
      */
     public function receiveRequest(): ?Request
     {
         if (!$this->requestReceived) {
-            $request = Request::receive($this->stream);
+            $buffer = $this->readRaw();
+            $pos = strpos($buffer, "\r\n\r\n");
 
-            if ($request) {
-                $this->requestReceived = true;
-                return $request;
+            if ($pos !== false) {
+                $dataLength = $pos + 4;
+
+                $requestData = mb_substr($buffer, 0, $dataLength, '8bit');
+                $request = Request::parse($requestData);
+
+                if ($request) {
+                    $this->discardReadData($dataLength);
+                    $this->requestReceived = true;
+                    return $request;
+                } else {
+                    $this->error(StatusCode\ClientError::BAD_REQUEST);
+                    $this->disconnect();
+                }
             }
         }
 
@@ -120,7 +218,8 @@ class Client
                 "Connection: Upgrade\r\n" .
                 "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
 
-            return $this->handshakePerformed = @fwrite($this->stream, $upgrade) !== false;
+            $this->sendRaw($upgrade);
+            return $this->handshakePerformed = true;
         }
 
         return false;
@@ -135,7 +234,7 @@ class Client
         if (!$this->handshakePerformed) {
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Location: $location\r\n\r\n";
-            @fwrite($this->stream, $header);
+            $this->sendRaw($header);
         }
     }
 
@@ -150,7 +249,7 @@ class Client
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Date: $date\r\n\r\n";
 
-            @fwrite($this->stream, $header);
+            $this->sendRaw($header);
         }
     }
 
@@ -181,20 +280,24 @@ class Client
 
     /**
      * Receives data message from the client
-     * @param int $maxChunksPerFrame Maximum amount of data chunks per frame
-     * @param int $maxChunkLength Maximum size (in bytes) of each chunk
      * @return Message|null Returns data message on success or **NULL** otherwise
      */
-    public function receiveMessage(int $maxChunksPerFrame = 8, int $maxChunkLength = 1024): ?Message
+    public function receiveMessage(): ?Message
     {
-        $frame = Frame::receive($this->stream, $maxChunksPerFrame, $maxChunkLength);
+        $frame = Frame::parse($this);
+
+        if (!$frame) {
+            return null;
+        }
 
         if ($frame->opcode->isControl()) {
             if ($frame->opcode == Opcode::CLOSE) {
                 $this->disconnect();
             } else if ($frame->opcode == Opcode::PING) {
                 $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
-                $pongFrame->send($this->stream);
+                $this->sendRaw(
+                    $pongFrame->encode()
+                );
             } else if ($frame->opcode == Opcode::PONG) {
                 if (
                     isset($this->pingFrame)
@@ -205,30 +308,38 @@ class Client
             }
         } else {
             if ($frame->opcode == Opcode::CONTINUATION) {
-                $bufferSize = count($this->buffer);
+                $bufferSize = count($this->frameBuffer);
 
                 if ($bufferSize == 0 || $bufferSize >= $this->maxFrameBufferSize) {
                     $this->disconnect();
                     return null;
                 }
 
-                $this->buffer[] = $frame;
+                $this->frameBuffer[] = $frame;
             } else {
-                $this->buffer = [
+                $this->frameBuffer = [
                     $frame
                 ];
             }
 
             if ($frame->final) {
-                $opcode = $this->buffer[0]->opcode;
-                $payload = '';
+                $opcode = $this->frameBuffer[0]->opcode;
+                $isBinary = $opcode == Opcode::BINARY;
 
-                foreach ($this->buffer as $bufferedFrame) {
-                    $payload .= $bufferedFrame->payload ?? '';
+                $payloads = [];
+                foreach ($this->frameBuffer as $bufferedFrame) {
+                    $payloads[] = $bufferedFrame->payload ?? '';
                 }
-                $this->buffer = [];
 
-                return new Message($payload, $opcode == Opcode::BINARY);
+                $fullPayload = implode('', $payloads);
+                $this->frameBuffer = [];
+
+                if (!$isBinary && !mb_check_encoding($fullPayload, 'UTF-8')) {
+                    $this->disconnect();
+                    return null;
+                }
+
+                return new Message($fullPayload, $isBinary);
             }
         }
 
@@ -242,13 +353,12 @@ class Client
      */
     public function sendMessage(Message $message): void
     {
-        if ($message->binary) {
-            $frame = new Frame(true, Opcode::BINARY, $message->payload);
-        } else {
-            $frame = new Frame(true, Opcode::TEXT, $message->payload);
-        }
+        $opcode = $message->binary ? Opcode::BINARY : Opcode::TEXT;
+        $frame = new Frame(true, $opcode, $message->payload);
 
-        $frame->send($this->stream);
+        $this->sendRaw(
+            $frame->encode()
+        );
     }
 
     /**
@@ -260,7 +370,9 @@ class Client
         $this->pingedAt = microtime(true);
 
         $this->pingFrame = new Frame(true, Opcode::PING, random_bytes(16));
-        $this->pingFrame->send($this->stream);
+        $this->sendRaw(
+            $this->pingFrame->encode()
+        );
     }
 
     /**

@@ -23,77 +23,76 @@ class Frame
     ) {}
 
     /**
-     * Receives frame from stream
-     * @param resource $stream Source stream
-     * @param int $maxChunks Maximum amount of data chunks per frame
-     * @param int $maxChunkLength Maximum size (in bytes) of each chunk
-     * @return self Returns frame instance
+     * Parses frame from client's read buffer
+     * @param Client $client Client instance
+     * @return self|null Returns frame instance or **NULL** on failure
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-6.2
      */
-    public static function receive($stream, int $maxChunks = 8, int $maxChunkLength = 1024): self
+    public static function parse(Client $client): ?self
     {
-        $maxFrameLength = $maxChunks * $maxChunkLength;
+        /**
+         * @var bool $isFinal
+         * @var Opcode $opcode
+         * @var bool $isMasked
+         * @var int $dataLength
+         */
+        $headerLength = self::parseHeader($client, $isFinal, $opcode, $isMasked, $dataLength);
 
-        if (self::receiveHeader($stream, $final, $opcode, $masked, $length)) {
-            if ($length <= $maxFrameLength) {
-                $maskingKey = null;
-                if ($masked) {
-                    $maskingKey = self::readFromStream($stream, 4);
+        if ($headerLength !== null) {
+            $maskingKey = null;
+            $maskLength = 0;
+
+            if ($isMasked) {
+                $maskingKey = $client->readRaw(4, $headerLength);
+
+                if (mb_strlen($maskingKey, '8bit') === 4) {
+                    $maskLength = 4;
+                } else {
+                    return null;
                 }
+            }
 
-                if (!$masked || ($masked && $maskingKey)) {
-                    if ($length > 0) {
-                        $buffer = '';
+            if ($dataLength > 0) {
+                $buffer = $client->readRaw($dataLength, $headerLength + $maskLength);
 
-                        $remaining = $length;
-                        for ($i = 0; $i < $maxChunks, $remaining > 0; $i++) {
-                            $chunk = self::readFromStream($stream, min($remaining, $maxChunkLength));
-                            if (!$chunk) {
-                                $buffer = '';
-                                break;
-                            }
+                if (mb_strlen($buffer, '8bit') === $dataLength) {
+                    $payload = '';
 
-                            $buffer .= $chunk;
-                            $remaining -= mb_strlen($chunk, '8bit');
-                        }
-
-                        if ($buffer) {
-                            $payload = '';
-
-                            if ($maskingKey) {
-                                for ($i = 0; $i < $length; $i++) {
-                                    $payload .= $buffer[$i] ^ $maskingKey[$i % 4];
-                                }
-                            } else {
-                                $payload = $buffer;
-                            }
-
-                            return new self($final, $opcode, $payload);
+                    if ($maskingKey !== null) {
+                        for ($i = 0; $i < $dataLength; $i++) {
+                            $payload .= $buffer[$i] ^ $maskingKey[$i % 4];
                         }
                     } else {
-                        return new self($final, $opcode);
+                        $payload = $buffer;
                     }
+
+                    $client->discardReadData($headerLength + $maskLength + $dataLength);
+                    return new self($isFinal, $opcode, $payload);
                 }
+            } else {
+                $client->discardReadData($headerLength + $maskLength);
+                return new self($isFinal, $opcode);
             }
         }
 
-        return new self(true, Opcode::CLOSE);
+        return null;
     }
 
     /**
-     * Receives frame header from stream
-     * @param resource $stream Source stream
+     * Parses frame header from client's read buffer
+     * @param Client $client Client instance
      * @param bool &$final Final frame
      * @param Opcode &$opcode Frame opcode
      * @param bool &$masked Frame data is masked
      * @param int &$length Frame data length
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * @return int|null Returns header length (in bytes) or **NULL** on failure
      */
-    private static function receiveHeader($stream, &$final, &$opcode, &$masked, &$length): bool
+    private static function parseHeader(Client $client, &$final, &$opcode, &$masked, &$length): ?int
     {
-        $header = self::readFromStream($stream, 2);
+        $header = $client->readRaw(2);
 
-        if ($header) {
+        if (mb_strlen($header, '8bit') === 2) {
+            $headerLength = 2;
             $bytes = unpack('C2', $header);
 
             if ($bytes) {
@@ -104,7 +103,8 @@ class Frame
                     // Opcode (4 bits)
                     $opcode = Opcode::from($bytes[1] & 0b00001111);
                 } catch (\Error) {
-                    return false;
+                    $client->disconnect();
+                    return null;
                 }
 
                 // Mask (1 bit)
@@ -116,74 +116,58 @@ class Frame
                 $isControl = $opcode->isControl();
                 // Control frames must not be fragmented
                 if (!$final && $isControl) {
-                    return false;
+                    $client->disconnect();
+                    return null;
                 }
 
                 if ($length > 125) {
                     // Only non-control frames can have extended length
-                    if (!$isControl) {
-                        $extendedLength = null;
+                    if ($isControl) {
+                        $client->disconnect();
+                        return null;
+                    }
 
-                        if ($length == 127) {
-                            $extendedData = self::readFromStream($stream, 8);
-                            if ($extendedData) {
-                                // Extended payload length (64 bits)
-                                $extendedLength = (unpack('J', $extendedData) ?: [1 => null])[1];
-                            }
-                        } else if ($length == 126) {
-                            $extendedData = self::readFromStream($stream, 2);
-                            if ($extendedData) {
-                                // Extended payload length (16 bits)
-                                $extendedLength = (unpack('n', $extendedData) ?: [1 => null])[1];
-                            }
+                    $extendedLength = null;
+
+                    if ($length === 127) {
+                        // Extended payload length (64 bits)
+                        $extendedData = $client->readRaw(8, $headerLength);
+
+                        if (mb_strlen($extendedData, '8bit') === 8) {
+                            $headerLength += 8;
+                            /** @var int|null $extendedLength */
+                            $extendedLength = (unpack('J', $extendedData) ?: [1 => null])[1];
                         }
+                    } else if ($length === 126) {
+                        // Extended payload length (16 bits)
+                        $extendedData = $client->readRaw(2, $headerLength);
 
-                        if (is_int($extendedLength)) {
-                            $length = $extendedLength;
-                            return true;
+                        if (mb_strlen($extendedData, '8bit') === 2) {
+                            $headerLength += 2;
+                            /** @var int|null $extendedLength */
+                            $extendedLength = (unpack('n', $extendedData) ?: [1 => null])[1];
                         }
                     }
+
+                    if ($extendedLength !== null) {
+                        $length = $extendedLength;
+                        return $headerLength;
+                    }
                 } else {
-                    return true;
+                    return $headerLength;
                 }
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
-     * Reads data from stream
-     * @param resource $stream Source stream
-     * @param int $length Data length
-     * @return string|null Returns received data or **NULL** on failure
-     */
-    private static function readFromStream($stream, int $length): ?string
-    {
-        $buffer = '';
-        $bufferSize = 0;
-
-        while ($bufferSize < $length) {
-            $data = fread($stream, $length - $bufferSize);
-
-            if ($data) {
-                $buffer .= $data;
-                $bufferSize += mb_strlen($data, '8bit');
-            } else {
-                return null;
-            }
-        }
-
-        return $buffer;
-    }
-
-    /**
-     * Sends frame
-     * @param resource $stream Target stream
-     * @return void
+     * Encodes frame for further sending
+     * @return string Encoded data
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-6.1
      */
-    public function send($stream): void
+    public function encode(): string
     {
         // FIN (1 bit) + RSV1, RSV2, RSV3 (1 bit each) + Opcode (4 bits)
         $header = pack('C', ($this->final ? 0b10000000 : 0b00000000) | $this->opcode->value);
@@ -202,6 +186,6 @@ class Frame
             $header .= pack('C', 0b00000000 | $frameLength);
         }
 
-        @fwrite($stream, $header . $this->payload);
+        return $header . $this->payload;
     }
 }
