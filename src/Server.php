@@ -159,6 +159,7 @@ class Server
                         if (!$client->connected && $client->requestAccepted) {
                             $this->online--;
                             $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
+                            unset($this->clients[$streamId]);
                         }
                     }
                 }
