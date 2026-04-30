@@ -10,7 +10,7 @@ Lightweight and minimalistic.
 * Built-in non-blocking timers.
 
 ## Requirements
-* PHP 8.4+
+* PHP 8.4 or higher (64-bit)
 
 > [!IMPORTANT]
 > If you plan to run websockets on a shared hosting, remember that most shared hosting providers block ports for any third-party usage. You will likely have to use a VPS or a dedicated server.
