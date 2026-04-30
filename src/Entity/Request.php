@@ -199,7 +199,7 @@ class Request
             $secKey = base64_decode($headers['sec-websocket-key'], true);
 
             // 'Sec-WebSocket-Key' header field must be base64-encoded 16-byte value
-            if ($secKey && mb_strlen($secKey, '8bit') === 16) {
+            if ($secKey && strlen($secKey) === 16) {
                 return true;
             }
         }

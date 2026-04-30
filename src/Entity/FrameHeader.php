@@ -33,7 +33,7 @@ readonly class FrameHeader
     {
         $header = $client->readRaw(2);
 
-        if (mb_strlen($header, '8bit') === 2) {
+        if (strlen($header) === 2) {
             $headerLength = 2;
             $bytes = unpack('C2', $header);
 
@@ -75,7 +75,7 @@ readonly class FrameHeader
                         // Extended payload length (64 bits)
                         $extendedData = $client->readRaw(8, $headerLength);
 
-                        if (mb_strlen($extendedData, '8bit') === 8) {
+                        if (strlen($extendedData) === 8) {
                             $headerLength += 8;
                             /** @var int|null $extendedLength */
                             $extendedLength = (unpack('J', $extendedData) ?: [1 => null])[1];
@@ -84,7 +84,7 @@ readonly class FrameHeader
                         // Extended payload length (16 bits)
                         $extendedData = $client->readRaw(2, $headerLength);
 
-                        if (mb_strlen($extendedData, '8bit') === 2) {
+                        if (strlen($extendedData) === 2) {
                             $headerLength += 2;
                             /** @var int|null $extendedLength */
                             $extendedLength = (unpack('n', $extendedData) ?: [1 => null])[1];

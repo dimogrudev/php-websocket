@@ -11,7 +11,7 @@ class Message
     public int $length {
         get {
             if ($this->isBinary) {
-                return mb_strlen($this->payload, '8bit');
+                return strlen($this->payload);
             }
             return mb_strlen($this->payload, 'UTF-8');
         }

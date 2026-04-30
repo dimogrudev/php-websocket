@@ -109,7 +109,7 @@ class Client
 
             $this->readBuffer .= $data;
 
-            if (mb_strlen($this->readBuffer, '8bit') > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
+            if (strlen($this->readBuffer) > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
                 $this->disconnect();
                 return false;
             }
@@ -134,7 +134,7 @@ class Client
             }
 
             if ($written > 0) {
-                $this->writeBuffer = mb_substr($this->writeBuffer, $written, null, '8bit');
+                $this->writeBuffer = substr($this->writeBuffer, $written, null);
 
                 if (isset($this->closeFrame) && !$this->hasDataToWrite) {
                     $this->disconnect();
@@ -151,7 +151,7 @@ class Client
      */
     public function readRaw(?int $length = null, int $offset = 0): string
     {
-        return mb_substr($this->readBuffer, $offset, $length, '8bit');
+        return substr($this->readBuffer, $offset, $length);
     }
 
     /**
@@ -161,7 +161,7 @@ class Client
      */
     public function discardReadData(int $length): void
     {
-        $this->readBuffer = mb_substr($this->readBuffer, $length, null, '8bit');
+        $this->readBuffer = substr($this->readBuffer, $length, null);
     }
 
     /**
@@ -186,7 +186,7 @@ class Client
 
             if ($pos !== false) {
                 $dataLength = $pos + 4;
-                $requestData = mb_substr($buffer, 0, $dataLength, '8bit');
+                $requestData = substr($buffer, 0, $dataLength);
 
                 if ($request = Request::parse($requestData)) {
                     $this->discardReadData($dataLength);

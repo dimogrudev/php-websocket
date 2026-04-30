@@ -46,7 +46,7 @@ readonly class Frame
             if ($header->isMasked) {
                 $maskingKey = $client->readRaw(4, $header->headerLength);
 
-                if (mb_strlen($maskingKey, '8bit') === 4) {
+                if (strlen($maskingKey) === 4) {
                     $maskLength = 4;
                 } else {
                     return null;
@@ -56,7 +56,7 @@ readonly class Frame
             if ($header->dataLength > 0) {
                 $buffer = $client->readRaw($header->dataLength, $header->headerLength + $maskLength);
 
-                if (mb_strlen($buffer, '8bit') === $header->dataLength) {
+                if (strlen($buffer) === $header->dataLength) {
                     $payload = ($maskingKey !== null)
                         ? self::unmask($buffer, $maskingKey)
                         : $buffer;
@@ -82,7 +82,7 @@ readonly class Frame
     private static function unmask(string $data, string $maskingKey): string
     {
         $unmasked = '';
-        $length = mb_strlen($data, '8bit');
+        $length = strlen($data);
 
         for ($i = 0; $i < $length; $i++) {
             $unmasked .= $data[$i] ^ $maskingKey[$i % 4];
@@ -101,7 +101,7 @@ readonly class Frame
         // FIN (1 bit) + RSV1, RSV2, RSV3 (1 bit each) + Opcode (4 bits)
         $header = pack('C', ($this->isFinal ? 0b10000000 : 0b00000000) | $this->opcode->value);
         // Payload length
-        $frameLength = $this->payload ? mb_strlen($this->payload, '8bit') : 0;
+        $frameLength = $this->payload ? strlen($this->payload) : 0;
 
         // Set payload length
         if ($frameLength > 65535) {
