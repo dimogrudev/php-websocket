@@ -13,6 +13,7 @@ class Client
     const string WEBSOCKET_GUID             = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
     const int TIMEOUT_PING_RESPONSE         = 4000;
+    const int TIMEOUT_CLOSE                 = 2000;
     const int TIMEOUT_HANDSHAKE             = 4000;
 
     /////////////////////////////////
@@ -26,6 +27,8 @@ class Client
     private float $connectedAt;
     /** @var float $pingedAt Ping timestamp */
     private float $pingedAt;
+    /** @var float $closedAt Timestamp when the close frame was sent */
+    private float $closedAt;
 
     /** @var bool $isConnected Whether connection is established */
     private(set) bool $isConnected          = true;
@@ -39,6 +42,8 @@ class Client
 
     /** @var Frame $pingFrame Ping frame sent to client */
     private Frame $pingFrame;
+    /** @var Frame $closeFrame Close frame sent to client */
+    private Frame $closeFrame;
 
     /** @var Frame[] $frameBuffer Fragmentation buffer */
     private array $frameBuffer              = [];
@@ -94,7 +99,7 @@ class Client
      */
     public function pull(): bool
     {
-        if ($this->isConnected) {
+        if ($this->isConnected && !isset($this->closeFrame)) {
             $data = @fread($this->stream, $this->maxChunkLength);
 
             if ($data === false || ($data === '' && feof($this->stream))) {
@@ -130,6 +135,10 @@ class Client
 
             if ($written > 0) {
                 $this->writeBuffer = mb_substr($this->writeBuffer, $written, null, '8bit');
+
+                if (isset($this->closeFrame) && !$this->hasDataToWrite) {
+                    $this->disconnect();
+                }
             }
         }
     }
@@ -270,6 +279,12 @@ class Client
                 return false;
             }
         }
+        if (isset($this->closeFrame)) {
+            if (($microtime - $this->closedAt) * 1000 > self::TIMEOUT_CLOSE) {
+                $this->disconnect();
+                return false;
+            }
+        }
         if (!$this->isHandshakePerformed) {
             if (($microtime - $this->connectedAt) * 1000 > self::TIMEOUT_HANDSHAKE) {
                 $this->disconnect();
@@ -294,7 +309,12 @@ class Client
 
         if ($frame->opcode->isControl()) {
             if ($frame->opcode === Opcode::CLOSE) {
-                $this->disconnect();
+                $this->closedAt = microtime(true);
+
+                $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
+                $this->sendRaw(
+                    $this->closeFrame->encode()
+                );
             } else if ($frame->opcode === Opcode::PING) {
                 $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
                 $this->sendRaw(

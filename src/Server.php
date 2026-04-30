@@ -133,14 +133,8 @@ class Server
                         if ($client->pull()) {
                             $this->processClient($client);
                         }
-
                         if (!$client->isConnected) {
-                            if ($client->isRequestAccepted) {
-                                $this->online--;
-                                $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
-                            }
-
-                            unset($this->clients[$streamId]);
+                            $this->removeClient($client);
                         }
                     }
                 }
@@ -149,7 +143,12 @@ class Server
                     $streamId = intval($changingStream);
 
                     if (isset($this->clients[$streamId])) {
-                        $this->clients[$streamId]->push();
+                        $client = $this->clients[$streamId];
+                        $client->push();
+
+                        if (!$client->isConnected) {
+                            $this->removeClient($client);
+                        }
                     }
                 }
             }
@@ -261,6 +260,21 @@ class Server
                 $this->triggerCallback(Callback::MESSAGE_RECEIVE, [$client, $message]);
             }
         }
+    }
+
+    /**
+     * Removes disconnected client
+     * @param Client $client Client instance
+     * @return void
+     */
+    private function removeClient(Client $client): void
+    {
+        if ($client->isRequestAccepted) {
+            $this->online--;
+            $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
+        }
+
+        unset($this->clients[$client->id]);
     }
 
     /**
