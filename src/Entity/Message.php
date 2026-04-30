@@ -10,7 +10,7 @@ class Message
     /** @var int $length Message length */
     public int $length {
         get {
-            if ($this->binary) {
+            if ($this->isBinary) {
                 return mb_strlen($this->payload, '8bit');
             }
             return mb_strlen($this->payload, 'UTF-8');
@@ -19,16 +19,15 @@ class Message
 
     /**
      * @param string $payload Message payload
-     * @param bool $binary Binary message
-     * @return void
+     * @param bool $isBinary Whether message is binary
      */
     public function __construct(
-        private(set) string $payload,
-        private(set) bool $binary = false
+        public readonly string $payload,
+        public readonly bool $isBinary = false
     ) {}
 
     /**
-     * @return string
+     * @return string Returns message payload
      */
     public function __toString(): string
     {

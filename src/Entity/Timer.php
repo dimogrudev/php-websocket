@@ -7,21 +7,20 @@ namespace WebSocket\Entity;
  */
 class Timer
 {
-    /** @var bool $enabled Timer is enabled */
-    private(set) bool $enabled  = true;
+    /** @var bool $isEnabled Whether timer is enabled */
+    private(set) bool $isEnabled  = true;
     /** @var float $executedAt Last execution timestamp */
     private float $executedAt;
 
     /**
      * @param \Closure $function Timer function
      * @param int $delay Timer delay (in milliseconds)
-     * @param bool $repeat Run timer repeatedly
-     * @return void
+     * @param bool $isPeriodic Whether timer repeats
      */
     public function __construct(
-        private \Closure $function,
-        private int $delay,
-        private bool $repeat
+        private readonly \Closure $function,
+        private readonly int $delay,
+        private readonly bool $isPeriodic
     ) {
         $this->executedAt = microtime(true);
     }
@@ -33,7 +32,7 @@ class Timer
      */
     public function checkDelay(?float $microtime = null): bool
     {
-        if ($this->enabled) {
+        if ($this->isEnabled) {
             if ($microtime === null) {
                 /** @var float $microtime */
                 $microtime = microtime(true);
@@ -42,7 +41,7 @@ class Timer
             if (($microtime - $this->executedAt) * 1000 >= $this->delay) {
                 ($this->function)();
 
-                $this->enabled = $this->repeat;
+                $this->isEnabled = $this->isPeriodic;
                 $this->executedAt = $microtime;
 
                 return true;

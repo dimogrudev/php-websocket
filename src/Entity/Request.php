@@ -12,21 +12,20 @@ class Request
 
     /////////////////////////////////
 
-    /** @var array $params Query parameters */
+    /** @var array<string, string|array> $params Query parameters */
     private array $params           = [];
-    /** @var array $cookies Cookies */
+    /** @var array<string, string> $cookies Cookies */
     private array $cookies          = [];
 
     /////////////////////////////////
 
     /**
      * @param string $path Path
-     * @param array $headers Headers
-     * @return void
+     * @param array<string, string> $headers Headers
      */
     private function __construct(
-        private(set) string $path,
-        private array $headers
+        public readonly string $path,
+        private readonly array $headers
     ) {}
 
     /**
@@ -91,9 +90,9 @@ class Request
     /**
      * Gets cookie value
      * @param string $name Cookie name
-     * @return string|array|null Returns cookie value or **NULL** on failure
+     * @return string|null Returns cookie value or **NULL** on failure
      */
-    public function cookie(string $name): string|array|null
+    public function cookie(string $name): string|null
     {
         $name = strtolower($name);
 
@@ -137,8 +136,8 @@ class Request
     /**
      * Parses raw header data
      * @param string $raw Raw header data
-     * @param array &$urlParts URL parts
-     * @param array &$headers Headers
+     * @param array<string, string> &$urlParts URL parts
+     * @param array<string, string> &$headers Headers
      * @return bool Returns **TRUE** on success or **FALSE** otherwise
      */
     private static function parseRaw(string $raw, &$urlParts, &$headers): bool
@@ -147,7 +146,7 @@ class Request
             $requestParts = array_combine(['url', 'headers'], array_slice($matches, 1));
 
             if ($requestParts) {
-                $urlParts = parse_url($requestParts['url']);
+                $urlParts = parse_url($requestParts['url']) ?: [];
 
                 if ($urlParts && isset($urlParts['path']) && !isset($urlParts['fragment'])) {
                     return self::parseHeaders($requestParts['headers'], $headers);
@@ -161,7 +160,7 @@ class Request
     /**
      * Parses raw headers string
      * @param string $raw Source headers string
-     * @param array &$headers Headers
+     * @param array<string, string> &$headers Headers
      * @return bool Returns **TRUE** on success or **FALSE** otherwise
      */
     private static function parseHeaders(string $raw, &$headers): bool
@@ -179,6 +178,7 @@ class Request
 
     /**
      * Determines whether headers match requirements or not
+     * @param array<string, string> $headers Headers array
      * @return bool Returns **TRUE** on success or **FALSE** otherwise
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-4.2.1
      */
@@ -194,12 +194,12 @@ class Request
             // Must have 'Sec-WebSocket-Key' header field
             && isset($headers['sec-websocket-key']) && $headers['sec-websocket-key']
             // Must have 'Sec-WebSocket-Version' header field, with value of 13
-            && isset($headers['sec-websocket-version']) && $headers['sec-websocket-version'] == '13'
+            && isset($headers['sec-websocket-version']) && $headers['sec-websocket-version'] === '13'
         ) {
             $secKey = base64_decode($headers['sec-websocket-key'], true);
 
             // 'Sec-WebSocket-Key' header field must be base64-encoded 16-byte value
-            if ($secKey && mb_strlen($secKey, '8bit') == 16) {
+            if ($secKey && mb_strlen($secKey, '8bit') === 16) {
                 return true;
             }
         }

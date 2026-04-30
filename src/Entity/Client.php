@@ -27,21 +27,21 @@ class Client
     /** @var float $pingedAt Ping timestamp */
     private float $pingedAt;
 
-    /** @var bool $connected Connection established */
-    private(set) bool $connected            = true;
-    /** @var bool $handshakePerformed Handshake performed */
-    private(set) bool $handshakePerformed   = false;
+    /** @var bool $isConnected Whether connection is established */
+    private(set) bool $isConnected          = true;
+    /** @var bool $isHandshakePerformed Whether handshake is performed */
+    private(set) bool $isHandshakePerformed = false;
 
-    /** @var bool $requestReceived Request received */
-    private(set) bool $requestReceived      = false;
-    /** @var bool $requestAccepted Request accepted by server */
-    private(set) bool $requestAccepted      = false;
+    /** @var bool $isRequestReceived Whether request is received */
+    private(set) bool $isRequestReceived    = false;
+    /** @var bool $isRequestAccepted Whether request is accepted by server */
+    private(set) bool $isRequestAccepted    = false;
 
     /** @var Frame $pingFrame Ping frame sent to client */
     private Frame $pingFrame;
 
     /** @var Frame[] $frameBuffer Fragmentation buffer */
-    private array $frameBuffer                   = [];
+    private array $frameBuffer              = [];
 
     /** @var string $readBuffer Read buffer */
     private string $readBuffer              = '';
@@ -61,7 +61,6 @@ class Client
      * @param int $maxFrameBufferSize Maximum size of fragmentation buffer
      * @param int $maxChunksPerFrame Maximum amount of data chunks per frame
      * @param int $maxChunkLength Maximum size (in bytes) of each chunk
-     * @return void
      */
     public function __construct(
         private(set) mixed $stream,
@@ -83,8 +82,8 @@ class Client
      */
     public function disconnect(): void
     {
-        if ($this->connected) {
-            $this->connected = false;
+        if ($this->isConnected) {
+            $this->isConnected = false;
             @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
         }
     }
@@ -95,7 +94,7 @@ class Client
      */
     public function pull(): bool
     {
-        if ($this->connected) {
+        if ($this->isConnected) {
             $data = @fread($this->stream, $this->maxChunkLength);
 
             if ($data === false || ($data === '' && feof($this->stream))) {
@@ -121,7 +120,7 @@ class Client
      */
     public function push(): void
     {
-        if ($this->connected && $this->hasDataToWrite) {
+        if ($this->isConnected && $this->hasDataToWrite) {
             $written = @fwrite($this->stream, $this->writeBuffer);
 
             if ($written !== false && $written > 0) {
@@ -167,19 +166,17 @@ class Client
      */
     public function receiveRequest(): ?Request
     {
-        if (!$this->requestReceived) {
+        if (!$this->isRequestReceived) {
             $buffer = $this->readRaw();
             $pos = strpos($buffer, "\r\n\r\n");
 
             if ($pos !== false) {
                 $dataLength = $pos + 4;
-
                 $requestData = mb_substr($buffer, 0, $dataLength, '8bit');
-                $request = Request::parse($requestData);
 
-                if ($request) {
+                if ($request = Request::parse($requestData)) {
                     $this->discardReadData($dataLength);
-                    $this->requestReceived = true;
+                    $this->isRequestReceived = true;
                     return $request;
                 } else {
                     $this->error(StatusCode\ClientError::BAD_REQUEST);
@@ -197,8 +194,8 @@ class Client
      */
     public function acceptRequest(): void
     {
-        if ($this->requestReceived) {
-            $this->requestAccepted = true;
+        if ($this->isRequestReceived) {
+            $this->isRequestAccepted = true;
         }
     }
 
@@ -209,7 +206,7 @@ class Client
      */
     public function performHandshake(string $secKey): bool
     {
-        if (!$this->handshakePerformed) {
+        if (!$this->isHandshakePerformed) {
             $secAccept = base64_encode(
                 pack('H*', sha1($secKey . self::WEBSOCKET_GUID))
             );
@@ -219,7 +216,7 @@ class Client
                 "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
 
             $this->sendRaw($upgrade);
-            return $this->handshakePerformed = true;
+            return $this->isHandshakePerformed = true;
         }
 
         return false;
@@ -231,7 +228,7 @@ class Client
      */
     public function redirect(StatusCode\Redirection $code, string $location): void
     {
-        if (!$this->handshakePerformed) {
+        if (!$this->isHandshakePerformed) {
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Location: $location\r\n\r\n";
             $this->sendRaw($header);
@@ -244,7 +241,7 @@ class Client
      */
     public function error(StatusCode\ClientError $code): void
     {
-        if (!$this->handshakePerformed) {
+        if (!$this->isHandshakePerformed) {
             $date = gmdate('D, d M Y H:i:s T');
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Date: $date\r\n\r\n";
@@ -268,7 +265,7 @@ class Client
                 return false;
             }
         }
-        if (!$this->handshakePerformed) {
+        if (!$this->isHandshakePerformed) {
             if (($microtime - $this->connectedAt) * 1000 > self::TIMEOUT_HANDSHAKE) {
                 $this->disconnect();
                 return false;
@@ -291,14 +288,14 @@ class Client
         }
 
         if ($frame->opcode->isControl()) {
-            if ($frame->opcode == Opcode::CLOSE) {
+            if ($frame->opcode === Opcode::CLOSE) {
                 $this->disconnect();
-            } else if ($frame->opcode == Opcode::PING) {
+            } else if ($frame->opcode === Opcode::PING) {
                 $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
                 $this->sendRaw(
                     $pongFrame->encode()
                 );
-            } else if ($frame->opcode == Opcode::PONG) {
+            } else if ($frame->opcode === Opcode::PONG) {
                 if (
                     isset($this->pingFrame)
                     && $this->pingFrame->payload === $frame->payload
@@ -307,10 +304,10 @@ class Client
                 }
             }
         } else {
-            if ($frame->opcode == Opcode::CONTINUATION) {
+            if ($frame->opcode === Opcode::CONTINUATION) {
                 $bufferSize = count($this->frameBuffer);
 
-                if ($bufferSize == 0 || $bufferSize >= $this->maxFrameBufferSize) {
+                if ($bufferSize === 0 || $bufferSize >= $this->maxFrameBufferSize) {
                     $this->disconnect();
                     return null;
                 }
@@ -322,9 +319,9 @@ class Client
                 ];
             }
 
-            if ($frame->final) {
+            if ($frame->isFinal) {
                 $opcode = $this->frameBuffer[0]->opcode;
-                $isBinary = $opcode == Opcode::BINARY;
+                $isBinary = $opcode === Opcode::BINARY;
 
                 $payloads = [];
                 foreach ($this->frameBuffer as $bufferedFrame) {
@@ -353,7 +350,7 @@ class Client
      */
     public function sendMessage(Message $message): void
     {
-        $opcode = $message->binary ? Opcode::BINARY : Opcode::TEXT;
+        $opcode = $message->isBinary ? Opcode::BINARY : Opcode::TEXT;
         $frame = new Frame(true, $opcode, $message->payload);
 
         $this->sendRaw(
@@ -382,7 +379,7 @@ class Client
      */
     public static function extractIp($stream): ?string
     {
-        $socketName = stream_socket_get_name($stream, true);
+        $socketName = @stream_socket_get_name($stream, true);
 
         if ($socketName) {
             $socketName = preg_replace('/\s+/', '', $socketName);

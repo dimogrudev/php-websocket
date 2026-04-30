@@ -5,22 +5,29 @@ namespace WebSocket\Entity;
 use WebSocket\Registry\Opcode;
 
 /**
- * Represents frame entity
+ * Represents frame value object
  * @see https://datatracker.ietf.org/doc/html/rfc6455#section-5
  */
-class Frame
+readonly class Frame
 {
     /**
-     * @param bool $final Final frame
+     * @param bool $isFinal Indicates if this is the final fragment
      * @param Opcode $opcode Frame opcode
      * @param string|null $payload Frame data
-     * @return void
      */
     public function __construct(
-        private(set) bool $final,
-        private(set) Opcode $opcode,
-        private(set) ?string $payload = null
+        public bool $isFinal,
+        public Opcode $opcode,
+        public ?string $payload = null
     ) {}
+
+    /**
+     * @return string Returns encoded data ready for sending
+     */
+    public function __toString(): string
+    {
+        return $this->encode();
+    }
 
     /**
      * Parses frame from client's read buffer
@@ -30,20 +37,14 @@ class Frame
      */
     public static function parse(Client $client): ?self
     {
-        /**
-         * @var bool $isFinal
-         * @var Opcode $opcode
-         * @var bool $isMasked
-         * @var int $dataLength
-         */
-        $headerLength = self::parseHeader($client, $isFinal, $opcode, $isMasked, $dataLength);
+        $header = FrameHeader::parse($client);
 
-        if ($headerLength !== null) {
+        if ($header !== null) {
             $maskingKey = null;
             $maskLength = 0;
 
-            if ($isMasked) {
-                $maskingKey = $client->readRaw(4, $headerLength);
+            if ($header->isMasked) {
+                $maskingKey = $client->readRaw(4, $header->headerLength);
 
                 if (mb_strlen($maskingKey, '8bit') === 4) {
                     $maskLength = 4;
@@ -52,26 +53,20 @@ class Frame
                 }
             }
 
-            if ($dataLength > 0) {
-                $buffer = $client->readRaw($dataLength, $headerLength + $maskLength);
+            if ($header->dataLength > 0) {
+                $buffer = $client->readRaw($header->dataLength, $header->headerLength + $maskLength);
 
-                if (mb_strlen($buffer, '8bit') === $dataLength) {
-                    $payload = '';
+                if (mb_strlen($buffer, '8bit') === $header->dataLength) {
+                    $payload = ($maskingKey !== null)
+                        ? self::unmask($buffer, $maskingKey)
+                        : $buffer;
 
-                    if ($maskingKey !== null) {
-                        for ($i = 0; $i < $dataLength; $i++) {
-                            $payload .= $buffer[$i] ^ $maskingKey[$i % 4];
-                        }
-                    } else {
-                        $payload = $buffer;
-                    }
-
-                    $client->discardReadData($headerLength + $maskLength + $dataLength);
-                    return new self($isFinal, $opcode, $payload);
+                    $client->discardReadData($header->headerLength + $maskLength + $header->dataLength);
+                    return new self($header->isFinal, $header->opcode, $payload);
                 }
             } else {
-                $client->discardReadData($headerLength + $maskLength);
-                return new self($isFinal, $opcode);
+                $client->discardReadData($header->headerLength + $maskLength);
+                return new self($header->isFinal, $header->opcode);
             }
         }
 
@@ -79,87 +74,21 @@ class Frame
     }
 
     /**
-     * Parses frame header from client's read buffer
-     * @param Client $client Client instance
-     * @param bool &$final Final frame
-     * @param Opcode &$opcode Frame opcode
-     * @param bool &$masked Frame data is masked
-     * @param int &$length Frame data length
-     * @return int|null Returns header length (in bytes) or **NULL** on failure
+     * Applies XOR masking to the data
+     * @param string $data Raw data
+     * @param string $maskingKey 4-byte masking key
+     * @return string Returns unmasked data
      */
-    private static function parseHeader(Client $client, &$final, &$opcode, &$masked, &$length): ?int
+    private static function unmask(string $data, string $maskingKey): string
     {
-        $header = $client->readRaw(2);
+        $unmasked = '';
+        $length = mb_strlen($data, '8bit');
 
-        if (mb_strlen($header, '8bit') === 2) {
-            $headerLength = 2;
-            $bytes = unpack('C2', $header);
-
-            if ($bytes) {
-                // FIN (1 bit)
-                $final = (bool)($bytes[1] & 0b10000000);
-
-                try {
-                    // Opcode (4 bits)
-                    $opcode = Opcode::from($bytes[1] & 0b00001111);
-                } catch (\Error) {
-                    $client->disconnect();
-                    return null;
-                }
-
-                // Mask (1 bit)
-                $masked = (bool)($bytes[2] & 0b10000000);
-                // Payload length (7 bits)
-                $length = $bytes[2] & 0b01111111;
-
-                // Whether control frame or not
-                $isControl = $opcode->isControl();
-                // Control frames must not be fragmented
-                if (!$final && $isControl) {
-                    $client->disconnect();
-                    return null;
-                }
-
-                if ($length > 125) {
-                    // Only non-control frames can have extended length
-                    if ($isControl) {
-                        $client->disconnect();
-                        return null;
-                    }
-
-                    $extendedLength = null;
-
-                    if ($length === 127) {
-                        // Extended payload length (64 bits)
-                        $extendedData = $client->readRaw(8, $headerLength);
-
-                        if (mb_strlen($extendedData, '8bit') === 8) {
-                            $headerLength += 8;
-                            /** @var int|null $extendedLength */
-                            $extendedLength = (unpack('J', $extendedData) ?: [1 => null])[1];
-                        }
-                    } else if ($length === 126) {
-                        // Extended payload length (16 bits)
-                        $extendedData = $client->readRaw(2, $headerLength);
-
-                        if (mb_strlen($extendedData, '8bit') === 2) {
-                            $headerLength += 2;
-                            /** @var int|null $extendedLength */
-                            $extendedLength = (unpack('n', $extendedData) ?: [1 => null])[1];
-                        }
-                    }
-
-                    if ($extendedLength !== null) {
-                        $length = $extendedLength;
-                        return $headerLength;
-                    }
-                } else {
-                    return $headerLength;
-                }
-            }
+        for ($i = 0; $i < $length; $i++) {
+            $unmasked .= $data[$i] ^ $maskingKey[$i % 4];
         }
 
-        return null;
+        return $unmasked;
     }
 
     /**
@@ -170,7 +99,7 @@ class Frame
     public function encode(): string
     {
         // FIN (1 bit) + RSV1, RSV2, RSV3 (1 bit each) + Opcode (4 bits)
-        $header = pack('C', ($this->final ? 0b10000000 : 0b00000000) | $this->opcode->value);
+        $header = pack('C', ($this->isFinal ? 0b10000000 : 0b00000000) | $this->opcode->value);
         // Payload length
         $frameLength = $this->payload ? mb_strlen($this->payload, '8bit') : 0;
 
