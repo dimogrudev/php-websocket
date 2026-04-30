@@ -2,7 +2,6 @@
 
 namespace WebSocket;
 
-use WebSocket\Entity\Client;
 use WebSocket\Entity\Request;
 use WebSocket\Entity\Message;
 use WebSocket\Entity\Timer;

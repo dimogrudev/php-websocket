@@ -1,7 +1,8 @@
 <?php
 
-namespace WebSocket\Entity;
+namespace WebSocket\Protocol;
 
+use WebSocket\Client;
 use WebSocket\Registry\Opcode;
 
 /**

@@ -1,7 +1,10 @@
 <?php
 
-namespace WebSocket\Entity;
+namespace WebSocket;
 
+use WebSocket\Entity\Message;
+use WebSocket\Entity\Request;
+use WebSocket\Protocol\Frame;
 use WebSocket\Registry\Opcode;
 use WebSocket\Registry\StatusCode;
 
