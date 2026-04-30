@@ -123,7 +123,12 @@ class Client
         if ($this->isConnected && $this->hasDataToWrite) {
             $written = @fwrite($this->stream, $this->writeBuffer);
 
-            if ($written !== false && $written > 0) {
+            if ($written === false) {
+                $this->disconnect();
+                return;
+            }
+
+            if ($written > 0) {
                 $this->writeBuffer = mb_substr($this->writeBuffer, $written, null, '8bit');
             }
         }
