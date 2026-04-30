@@ -2,6 +2,7 @@
 
 namespace WebSocket;
 
+use WebSocket\Contract\ClientInterface;
 use WebSocket\Entity\Message;
 use WebSocket\Entity\Request;
 use WebSocket\Protocol\Frame;
@@ -11,7 +12,7 @@ use WebSocket\Registry\StatusCode;
 /**
  * Represents client entity
  */
-class Client
+class Client implements ClientInterface
 {
     const string WEBSOCKET_GUID             = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 

@@ -2,10 +2,12 @@
 
 namespace WebSocket\Entity;
 
+use WebSocket\Contract\RequestInterface;
+
 /**
  * Represents request entity
  */
-class Request
+class Request implements RequestInterface
 {
     const string REGEX_REQUEST      = '/^GET\x20(.+)\x20HTTP\/1\.1\r\n((?:[^\r\n]+\r\n)+)\r\n$/';
     const string REGEX_HEADERS      = '/([^:]+):\x20*(.*)\r\n/';

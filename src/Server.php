@@ -2,7 +2,8 @@
 
 namespace WebSocket;
 
-use WebSocket\Entity\Request;
+use WebSocket\Contract\ClientInterface;
+use WebSocket\Contract\RequestInterface;
 use WebSocket\Entity\Message;
 use WebSocket\Entity\Timer;
 use WebSocket\Registry\Callback;
@@ -474,7 +475,7 @@ class Server
 
     /**
      * Registers server callback triggered on client connect
-     * @param (\Closure(Client $client, Request $request): bool)|null $function Callback function
+     * @param (\Closure(ClientInterface $client, RequestInterface $request): bool)|null $function Callback function
      * @return void
      */
     public function onClientConnect(?\Closure $function): void
@@ -484,7 +485,7 @@ class Server
 
     /**
      * Registers server callback triggered on client disconnect
-     * @param (\Closure(Client $client): void)|null $function Callback function
+     * @param (\Closure(ClientInterface $client): void)|null $function Callback function
      * @return void
      */
     public function onClientDisconnect(?\Closure $function): void
@@ -494,7 +495,7 @@ class Server
 
     /**
      * Registers server callback triggered on message receive
-     * @param (\Closure(Client $client, Message $message): void)|null $function Callback function
+     * @param (\Closure(ClientInterface $client, Message $message): void)|null $function Callback function
      * @return void
      */
     public function onMessageReceive(?\Closure $function): void
