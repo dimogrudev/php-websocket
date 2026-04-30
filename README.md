@@ -8,6 +8,7 @@ Lightweight and minimalistic.
 * Binary and textual data frames, both sending and receiving.
 * Control frames (ping/pong/close).
 * Built-in non-blocking timers.
+* Non-blocking I/O.
 
 ## Requirements
 * PHP 8.4 or higher (64-bit)
@@ -40,7 +41,7 @@ $server->setTimer(function () use ($server): void {
 }, 30000, true);
 // Handle incoming messages
 $server->onMessageReceive(function ($client, $message): void {
-    if ($message->binary) {
+    if ($message->isBinary) {
         print "{$client->ipAddr} (#{$client->id}) sends binary message ({$message->length} bytes)\n";
     } else {
         print "{$client->ipAddr} (#{$client->id}) sends `{$message->payload}`\n";
