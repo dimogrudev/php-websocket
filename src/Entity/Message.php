@@ -3,11 +3,11 @@
 namespace WebSocket\Entity;
 
 /**
- * Represents data message entity
+ * Represents data message DTO.
  */
 class Message
 {
-    /** @var int $length Message length */
+    /** @var int $length Message length. */
     public int $length {
         get {
             if ($this->isBinary) {
@@ -18,8 +18,8 @@ class Message
     }
 
     /**
-     * @param string $payload Message payload
-     * @param bool $isBinary Whether message is binary
+     * @param string $payload Message payload.
+     * @param bool $isBinary Whether message is binary.
      */
     public function __construct(
         public readonly string $payload,
@@ -27,7 +27,7 @@ class Message
     ) {}
 
     /**
-     * @return string Returns message payload
+     * @return string Returns message payload.
      */
     public function __toString(): string
     {

@@ -3,19 +3,19 @@
 namespace WebSocket\Entity;
 
 /**
- * Represents timer entity
+ * Represents timer entity.
  */
 class Timer
 {
-    /** @var bool $isEnabled Whether timer is enabled */
+    /** @var bool $isEnabled Whether timer is enabled. */
     private(set) bool $isEnabled  = true;
-    /** @var float $executedAt Last execution timestamp */
+    /** @var float $executedAt Last execution timestamp. */
     private float $executedAt;
 
     /**
-     * @param \Closure $function Timer function
-     * @param int $delay Timer delay (in milliseconds)
-     * @param bool $isPeriodic Whether timer repeats
+     * @param \Closure $function Timer function.
+     * @param int $delay Timer delay (in milliseconds).
+     * @param bool $isPeriodic Whether timer repeats.
      */
     public function __construct(
         private readonly \Closure $function,
@@ -26,9 +26,9 @@ class Timer
     }
 
     /**
-     * Checks whether timer can be executed or not
-     * @param float|null $microtime Current timestamp with microseconds
-     * @return bool Returns **TRUE** if timer is executed or **FALSE** otherwise
+     * Checks whether timer can be executed or not.
+     * @param float|null $microtime Current timestamp with microseconds.
+     * @return bool Returns **TRUE** if timer is executed or **FALSE** otherwise.
      */
     public function checkDelay(?float $microtime = null): bool
     {

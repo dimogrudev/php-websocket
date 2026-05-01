@@ -10,7 +10,7 @@ use WebSocket\Registry\Opcode;
 use WebSocket\Registry\StatusCode;
 
 /**
- * Represents client entity
+ * Represents client entity.
  */
 class Client implements ClientInterface
 {
@@ -22,42 +22,42 @@ class Client implements ClientInterface
 
     /////////////////////////////////
 
-    /** @var int $id Client stream ID */
+    /** @var int $id Client stream ID. */
     public int $id {
         get => intval($this->stream);
     }
 
-    /** @var float $connectedAt Connection timestamp */
+    /** @var float $connectedAt Connection timestamp. */
     private float $connectedAt;
-    /** @var float $pingedAt Ping timestamp */
+    /** @var float $pingedAt Ping timestamp. */
     private float $pingedAt;
-    /** @var float $closedAt Timestamp when the close frame was sent */
+    /** @var float $closedAt Timestamp when the close frame was sent. */
     private float $closedAt;
 
-    /** @var bool $isConnected Whether connection is established */
+    /** @var bool $isConnected Whether connection is established. */
     private(set) bool $isConnected          = true;
-    /** @var bool $isHandshakePerformed Whether handshake is performed */
+    /** @var bool $isHandshakePerformed Whether handshake is performed. */
     private(set) bool $isHandshakePerformed = false;
 
-    /** @var bool $isRequestReceived Whether request is received */
+    /** @var bool $isRequestReceived Whether request is received. */
     private(set) bool $isRequestReceived    = false;
-    /** @var bool $isRequestAccepted Whether request is accepted by server */
+    /** @var bool $isRequestAccepted Whether request is accepted by server. */
     private(set) bool $isRequestAccepted    = false;
 
-    /** @var Frame $pingFrame Ping frame sent to client */
+    /** @var Frame $pingFrame Ping frame sent to client. */
     private Frame $pingFrame;
-    /** @var Frame $closeFrame Close frame sent to client */
+    /** @var Frame $closeFrame Close frame sent to client. */
     private Frame $closeFrame;
 
-    /** @var Frame[] $frameBuffer Fragmentation buffer */
+    /** @var Frame[] $frameBuffer Fragmentation buffer. */
     private array $frameBuffer              = [];
 
-    /** @var string $readBuffer Read buffer */
+    /** @var string $readBuffer Read buffer. */
     private string $readBuffer              = '';
-    /** @var string $writeBuffer Write buffer */
+    /** @var string $writeBuffer Write buffer. */
     private string $writeBuffer             = '';
 
-    /** @var bool $hasDataToWrite Client has data in write buffer */
+    /** @var bool $hasDataToWrite Client has data in write buffer. */
     public bool $hasDataToWrite {
         get => $this->writeBuffer !== '';
     }
@@ -65,11 +65,11 @@ class Client implements ClientInterface
     /////////////////////////////////
 
     /**
-     * @param resource $stream Client stream
-     * @param string $ipAddr Client IP address
-     * @param int $maxFrameBufferSize Maximum size of fragmentation buffer
-     * @param int $maxChunksPerFrame Maximum amount of data chunks per frame
-     * @param int $maxChunkLength Maximum size (in bytes) of each chunk
+     * @param resource $stream Client stream.
+     * @param string $ipAddr Client IP address.
+     * @param int $maxFrameBufferSize Maximum size of fragmentation buffer.
+     * @param int $maxChunksPerFrame Maximum amount of data chunks per frame.
+     * @param int $maxChunkLength Maximum size (in bytes) of each chunk.
      */
     public function __construct(
         private(set) mixed $stream,
@@ -86,7 +86,7 @@ class Client implements ClientInterface
     }
 
     /**
-     * Disconnects client
+     * Disconnects client.
      * @return void
      */
     public function disconnect(): void
@@ -98,8 +98,8 @@ class Client implements ClientInterface
     }
 
     /**
-     * Pulls data from client's stream to read buffer
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * Pulls data from client's stream to read buffer.
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
      */
     public function pull(): bool
     {
@@ -124,7 +124,7 @@ class Client implements ClientInterface
     }
 
     /**
-     * Pushes data from write buffer to client's stream
+     * Pushes data from write buffer to client's stream.
      * @return void
      */
     public function push(): void
@@ -148,10 +148,10 @@ class Client implements ClientInterface
     }
 
     /**
-     * Extracts raw data from read buffer
-     * @param int|null $length Maximum length of returned string
-     * @param int $offset Data offset in the buffer
-     * @return string Returns raw data string
+     * Extracts raw data from read buffer.
+     * @param int|null $length Maximum length of returned string.
+     * @param int $offset Data offset in the buffer.
+     * @return string Returns raw data string.
      */
     public function readRaw(?int $length = null, int $offset = 0): string
     {
@@ -159,8 +159,8 @@ class Client implements ClientInterface
     }
 
     /**
-     * Discards processed data from read buffer
-     * @param int $length Length of raw data to be removed
+     * Discards processed data from read buffer.
+     * @param int $length Length of raw data to be removed.
      * @return void
      */
     public function discardReadData(int $length): void
@@ -169,8 +169,8 @@ class Client implements ClientInterface
     }
 
     /**
-     * Places raw data into write buffer for further sending
-     * @param string $data Raw data string
+     * Places raw data into write buffer for further sending.
+     * @param string $data Raw data string.
      * @return void
      */
     public function sendRaw(string $data): void
@@ -179,8 +179,8 @@ class Client implements ClientInterface
     }
 
     /**
-     * Tries to receive request data from client
-     * @return Request|null Returns request entity or **NULL** on failure
+     * Tries to receive request data from client.
+     * @return Request|null Returns request entity or **NULL** on failure.
      */
     public function receiveRequest(): ?Request
     {
@@ -207,7 +207,7 @@ class Client implements ClientInterface
     }
 
     /**
-     * Confirms request acceptance
+     * Confirms request acceptance.
      * @return void
      */
     public function acceptRequest(): void
@@ -218,9 +218,9 @@ class Client implements ClientInterface
     }
 
     /**
-     * Tries to perform handshake with the client
-     * @param string $secKey Security key
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * Tries to perform handshake with the client.
+     * @param string $secKey Security key.
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
      */
     public function performHandshake(string $secKey): bool
     {
@@ -241,7 +241,7 @@ class Client implements ClientInterface
     }
 
     /**
-     * Sends redirection header to the client
+     * Sends redirection header to the client.
      * @return void
      */
     public function redirect(StatusCode\Redirection $code, string $location): void
@@ -254,7 +254,7 @@ class Client implements ClientInterface
     }
 
     /**
-     * Sends error header to the client
+     * Sends error header to the client.
      * @return void
      */
     public function error(StatusCode\ClientError $code): void
@@ -269,8 +269,8 @@ class Client implements ClientInterface
     }
 
     /**
-     * Checks the client's timeouts
-     * @return bool Returns **TRUE** if client is still connected or **FALSE** otherwise
+     * Checks the client's timeouts.
+     * @return bool Returns **TRUE** if client is still connected or **FALSE** otherwise.
      */
     public function checkTimeouts(): bool
     {
@@ -300,8 +300,8 @@ class Client implements ClientInterface
     }
 
     /**
-     * Receives data message from the client
-     * @return Message|null Returns data message on success or **NULL** otherwise
+     * Receives data message from the client.
+     * @return Message|null Returns data message on success or **NULL** otherwise.
      */
     public function receiveMessage(): ?Message
     {
@@ -373,8 +373,8 @@ class Client implements ClientInterface
     }
 
     /**
-     * Sends data message to the client
-     * @param Message $message Data message
+     * Sends data message to the client.
+     * @param Message $message Data message.
      * @return void
      */
     public function sendMessage(Message $message): void
@@ -388,7 +388,7 @@ class Client implements ClientInterface
     }
 
     /**
-     * Sends ping frame to the client
+     * Sends ping frame to the client.
      * @return void
      */
     public function ping(): void
@@ -402,9 +402,9 @@ class Client implements ClientInterface
     }
 
     /**
-     * Extracts IP address from stream
-     * @param resource $stream Source stream
-     * @return string|null Returns IP address on success or **NULL** otherwise
+     * Extracts IP address from stream.
+     * @param resource $stream Source stream.
+     * @return string|null Returns IP address on success or **NULL** otherwise.
      */
     public static function extractIp($stream): ?string
     {

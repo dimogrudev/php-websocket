@@ -3,7 +3,7 @@
 namespace WebSocket\Registry;
 
 /**
- * Represents callback registry
+ * Represents callback registry.
  */
 enum Callback: int
 {

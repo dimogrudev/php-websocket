@@ -3,7 +3,7 @@
 namespace WebSocket\Registry;
 
 /**
- * Represents opcode registry
+ * Represents opcode registry.
  * @see https://datatracker.ietf.org/doc/html/rfc6455#section-11.8
  */
 enum Opcode: int
@@ -16,8 +16,8 @@ enum Opcode: int
     case PONG           = 0xA;
 
     /**
-     * Determines whether opcode denotes control frame or not
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * Determines whether opcode denotes control frame or not.
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
      */
     public function isControl(): bool
     {

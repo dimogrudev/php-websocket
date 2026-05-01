@@ -5,7 +5,7 @@ namespace WebSocket\Entity;
 use WebSocket\Contract\RequestInterface;
 
 /**
- * Represents request entity
+ * Represents request entity.
  */
 class Request implements RequestInterface
 {
@@ -14,16 +14,16 @@ class Request implements RequestInterface
 
     /////////////////////////////////
 
-    /** @var array<string, string|array> $params Query parameters */
+    /** @var array<string, string|array> $params Query parameters. */
     private array $params           = [];
-    /** @var array<string, string> $cookies Cookies */
+    /** @var array<string, string> $cookies Cookies. */
     private array $cookies          = [];
 
     /////////////////////////////////
 
     /**
-     * @param string $path Path
-     * @param array<string, string> $headers Headers
+     * @param string $path Request path.
+     * @param array<string, string> $headers Headers.
      */
     private function __construct(
         public readonly string $path,
@@ -31,8 +31,8 @@ class Request implements RequestInterface
     ) {}
 
     /**
-     * Parses query parameters from string
-     * @param string $queryString Query string
+     * Parses query parameters from string.
+     * @param string $queryString Query string.
      * @return void
      */
     private function parseQueryString(string $queryString): void
@@ -42,8 +42,8 @@ class Request implements RequestInterface
     }
 
     /**
-     * Parses cookies from string
-     * @param string $cookieHeader Cookie header
+     * Parses cookies from string.
+     * @param string $cookieHeader Cookie header.
      * @return void
      */
     private function parseCookies(string $cookieHeader): void
@@ -60,11 +60,11 @@ class Request implements RequestInterface
     }
 
     /**
-     * Gets header value
-     * @param string $name Header name
-     * @return string|null Returns header value or **NULL** on failure
+     * Gets header value.
+     * @param string $name Header name.
+     * @return string|null Returns header value or **NULL** on failure.
      */
-    public function header(string $name): string|null
+    public function header(string $name): ?string
     {
         $name = strtolower($name);
 
@@ -75,9 +75,9 @@ class Request implements RequestInterface
     }
 
     /**
-     * Gets query value
-     * @param string $name Query parameter
-     * @return string|array|null Returns query value or **NULL** on failure
+     * Gets query value.
+     * @param string $name Query parameter.
+     * @return string|array|null Returns query value or **NULL** on failure.
      */
     public function query(string $name): string|array|null
     {
@@ -90,11 +90,11 @@ class Request implements RequestInterface
     }
 
     /**
-     * Gets cookie value
-     * @param string $name Cookie name
-     * @return string|null Returns cookie value or **NULL** on failure
+     * Gets cookie value.
+     * @param string $name Cookie name.
+     * @return string|null Returns cookie value or **NULL** on failure.
      */
-    public function cookie(string $name): string|null
+    public function cookie(string $name): ?string
     {
         $name = strtolower($name);
 
@@ -105,9 +105,9 @@ class Request implements RequestInterface
     }
 
     /**
-     * Parses request instance from raw header data
-     * @param string $raw Raw header data
-     * @return self|null Returns request instance or **NULL** on failure
+     * Parses request instance from raw header data.
+     * @param string $raw Raw header data.
+     * @return self|null Returns request instance or **NULL** on failure.
      */
     public static function parse(string $raw): ?self
     {
@@ -136,11 +136,11 @@ class Request implements RequestInterface
     }
 
     /**
-     * Parses raw header data
-     * @param string $raw Raw header data
-     * @param array<string, string> &$urlParts URL parts
-     * @param array<string, string> &$headers Headers
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * Parses raw header data.
+     * @param string $raw Raw header data.
+     * @param array<string, string> &$urlParts URL parts.
+     * @param array<string, string> &$headers Headers.
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
      */
     private static function parseRaw(string $raw, &$urlParts, &$headers): bool
     {
@@ -160,10 +160,10 @@ class Request implements RequestInterface
     }
 
     /**
-     * Parses raw headers string
-     * @param string $raw Source headers string
-     * @param array<string, string> &$headers Headers
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * Parses raw headers string.
+     * @param string $raw Source headers string.
+     * @param array<string, string> &$headers Headers.
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
      */
     private static function parseHeaders(string $raw, &$headers): bool
     {
@@ -179,9 +179,9 @@ class Request implements RequestInterface
     }
 
     /**
-     * Determines whether headers match requirements or not
-     * @param array<string, string> $headers Headers array
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * Determines whether headers match requirements or not.
+     * @param array<string, string> $headers Headers array.
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-4.2.1
      */
     private static function checkRequiredHeaders(array $headers): bool

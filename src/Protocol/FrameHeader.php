@@ -6,16 +6,16 @@ use WebSocket\Client;
 use WebSocket\Registry\Opcode;
 
 /**
- * Represents frame header value object
+ * Represents frame header value object.
  */
 readonly class FrameHeader
 {
     /**
-     * @param bool $isFinal Indicates if this is the final fragment
-     * @param Opcode $opcode Frame opcode
-     * @param bool $isMasked Whether the payload data is masked
-     * @param int $dataLength Length of the payload data (in bytes)
-     * @param int $headerLength Length of the frame header (in bytes)
+     * @param bool $isFinal Indicates if this is the final fragment.
+     * @param Opcode $opcode Frame opcode.
+     * @param bool $isMasked Whether the payload data is masked.
+     * @param int $dataLength Length of the payload data (in bytes).
+     * @param int $headerLength Length of the frame header (in bytes).
      */
     public function __construct(
         public bool $isFinal,
@@ -26,9 +26,9 @@ readonly class FrameHeader
     ) {}
 
     /**
-     * Parses frame header from client's read buffer
-     * @param Client $client Client instance
-     * @return self|null Returns frame header instance or **NULL** on failure
+     * Parses frame header from client's read buffer.
+     * @param Client $client Client instance.
+     * @return self|null Returns frame header instance or **NULL** on failure.
      */
     public static function parse(Client $client): ?self
     {

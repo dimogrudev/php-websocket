@@ -6,15 +6,15 @@ use WebSocket\Client;
 use WebSocket\Registry\Opcode;
 
 /**
- * Represents frame value object
+ * Represents frame value object.
  * @see https://datatracker.ietf.org/doc/html/rfc6455#section-5
  */
 readonly class Frame
 {
     /**
-     * @param bool $isFinal Indicates if this is the final fragment
-     * @param Opcode $opcode Frame opcode
-     * @param string|null $payload Frame data
+     * @param bool $isFinal Indicates if this is the final fragment.
+     * @param Opcode $opcode Frame opcode.
+     * @param string|null $payload Frame data.
      */
     public function __construct(
         public bool $isFinal,
@@ -23,7 +23,7 @@ readonly class Frame
     ) {}
 
     /**
-     * @return string Returns encoded data ready for sending
+     * @return string Returns encoded data ready for sending.
      */
     public function __toString(): string
     {
@@ -31,9 +31,9 @@ readonly class Frame
     }
 
     /**
-     * Parses frame from client's read buffer
-     * @param Client $client Client instance
-     * @return self|null Returns frame instance or **NULL** on failure
+     * Parses frame from client's read buffer.
+     * @param Client $client Client instance.
+     * @return self|null Returns frame instance or **NULL** on failure.
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-6.2
      */
     public static function parse(Client $client): ?self
@@ -75,10 +75,10 @@ readonly class Frame
     }
 
     /**
-     * Applies XOR masking to the data
-     * @param string $data Raw data
-     * @param string $maskingKey 4-byte masking key
-     * @return string Returns unmasked data
+     * Applies XOR masking to the data.
+     * @param string $data Raw data.
+     * @param string $maskingKey 4-byte masking key.
+     * @return string Returns unmasked data.
      */
     private static function unmask(string $data, string $maskingKey): string
     {
@@ -93,8 +93,8 @@ readonly class Frame
     }
 
     /**
-     * Encodes frame for further sending
-     * @return string Encoded data
+     * Encodes frame for further sending.
+     * @return string Encoded data.
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-6.1
      */
     public function encode(): string

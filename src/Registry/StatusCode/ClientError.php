@@ -3,7 +3,7 @@
 namespace WebSocket\Registry\StatusCode;
 
 /**
- * Represents client error response registry
+ * Represents client error response registry.
  * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#client_error_responses
  */
 enum ClientError: int
@@ -14,8 +14,8 @@ enum ClientError: int
     case NOT_FOUND      = 404;
 
     /**
-     * Gets status name
-     * @return string Returns status name
+     * Gets status name.
+     * @return string Returns status name.
      */
     public function getStatus(): string
     {

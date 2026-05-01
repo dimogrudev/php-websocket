@@ -6,36 +6,36 @@ use WebSocket\Entity\Message;
 use WebSocket\Registry\StatusCode;
 
 /**
- * Represents client interface for public API
+ * Represents client interface for public API.
  */
 interface ClientInterface
 {
-    /** @var int $id Client stream ID */
+    /** @var int $id Client stream ID. */
     public int $id { get; }
-    /** @var string $ipAddr Client IP address */
+    /** @var string $ipAddr Client IP address. */
     public string $ipAddr { get; }
-    /** @var bool $isConnected Whether connection is established */
+    /** @var bool $isConnected Whether connection is established. */
     public bool $isConnected { get; }
 
     /**
-     * Disconnects client
+     * Disconnects client.
      * @return void
      */
     public function disconnect(): void;
     /**
-     * Sends redirection header to the client
+     * Sends redirection header to the client.
      * @return void
      */
     public function redirect(StatusCode\Redirection $code, string $location): void;
     /**
-     * Sends error header to the client
+     * Sends error header to the client.
      * @return void
      */
     public function error(StatusCode\ClientError $code): void;
 
     /**
-     * Sends data message to the client
-     * @param Message $message Data message
+     * Sends data message to the client.
+     * @param Message $message Data message.
      * @return void
      */
     public function sendMessage(Message $message): void;

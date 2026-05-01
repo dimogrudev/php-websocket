@@ -3,7 +3,7 @@
 namespace WebSocket\Registry\StatusCode;
 
 /**
- * Represents redirection message registry
+ * Represents redirection message registry.
  * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status#redirection_messages
  */
 enum Redirection: int
@@ -13,8 +13,8 @@ enum Redirection: int
     case TEMPORARY_REDIRECT = 307;
 
     /**
-     * Gets status name
-     * @return string Returns status name
+     * Gets status name.
+     * @return string Returns status name.
      */
     public function getStatus(): string
     {

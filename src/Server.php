@@ -10,7 +10,7 @@ use WebSocket\Registry\Callback;
 use WebSocket\Registry\StatusCode;
 
 /**
- * Represents main server class
+ * Represents main server class.
  */
 class Server
 {
@@ -19,17 +19,17 @@ class Server
 
     /////////////////////////////////
 
-    /** @var resource $stream Server stream */
+    /** @var resource $stream Server stream. */
     private mixed $stream;
-    /** @var resource|null $sslContext Server stream context */
+    /** @var resource|null $sslContext Server stream context. */
     private mixed $sslContext           = null;
 
-    /** @var bool $isRunning Whether server is running */
+    /** @var bool $isRunning Whether server is running. */
     private(set) bool $isRunning        = false;
-    /** @var int $startedAt Start timestamp */
+    /** @var int $startedAt Start timestamp. */
     private int $startedAt;
 
-    /** @var int $uptime Server uptime */
+    /** @var int $uptime Server uptime. */
     public int $uptime {
         get {
             if (isset($this->startedAt)) {
@@ -39,25 +39,25 @@ class Server
         }
     }
 
-    /** @var array<int, Client> $clients All current clients */
+    /** @var array<int, Client> $clients All current clients. */
     private array $clients              = [];
-    /** @var int $online Number of clients online */
+    /** @var int $online Number of clients online. */
     private(set) int $online            = 0;
 
-    /** @var array<int, \Closure> $callbacks Server callbacks */
+    /** @var array<int, \Closure> $callbacks Server callbacks. */
     private array $callbacks            = [];
-    /** @var Timer[] $timers Server timers */
+    /** @var Timer[] $timers Server timers. */
     private array $timers               = [];
 
     /////////////////////////////////
 
     /**
-     * @param string $host Websocket server host
-     * @param int $port Websocket server port
-     * @param int $maxFrameBufferSize Maximum size of fragmentation buffer
-     * @param int $maxChunksPerFrame Maximum amount of data chunks per frame
-     * @param int $maxChunkLength Maximum size (in bytes) of each chunk
-     * @param int $eventLoopTimeout Event loop timeout (in milliseconds)
+     * @param string $host Websocket server host.
+     * @param int $port Websocket server port.
+     * @param int $maxFrameBufferSize Maximum size of fragmentation buffer.
+     * @param int $maxChunksPerFrame Maximum amount of data chunks per frame.
+     * @param int $maxChunkLength Maximum size (in bytes) of each chunk.
+     * @param int $eventLoopTimeout Event loop timeout (in milliseconds).
      */
     public function __construct(
         private readonly string $host,
@@ -71,10 +71,10 @@ class Server
     }
 
     /**
-     * Toggles SSL/TLS encryption
-     * @param bool $isEnabled **TRUE** to enable, **FALSE** to disable
-     * @param string|null $crtPath Path to **.crt** certificate file
-     * @param string|null $keyPath Path to **.key** certificate file
+     * Toggles SSL/TLS encryption.
+     * @param bool $isEnabled **TRUE** to enable, **FALSE** to disable.
+     * @param string|null $crtPath Path to **.crt** certificate file.
+     * @param string|null $keyPath Path to **.key** certificate file.
      * @return void
      */
     public function encryption(bool $isEnabled, ?string $crtPath = null, ?string $keyPath = null): void
@@ -99,7 +99,7 @@ class Server
     }
 
     /**
-     * Starts server
+     * Starts server.
      * @return void
      */
     public function start(): void
@@ -160,7 +160,7 @@ class Server
     }
 
     /**
-     * Stops server
+     * Stops server.
      * @return void
      */
     public function stop(): void
@@ -173,7 +173,7 @@ class Server
     /////////////////////////////////
 
     /**
-     * Initializes server
+     * Initializes server.
      * @return void
      */
     private function init(): void
@@ -196,7 +196,7 @@ class Server
     }
 
     /**
-     * Shuts down server
+     * Shuts down server.
      * @return void
      */
     private function shutdown(): void
@@ -211,8 +211,8 @@ class Server
     }
 
     /**
-     * Accepts incoming stream
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise
+     * Accepts incoming stream.
+     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
      */
     private function acceptIncomingStream(): bool
     {
@@ -234,8 +234,8 @@ class Server
     }
 
     /**
-     * Processes client's state and incoming data
-     * @param Client $client Client instance
+     * Processes client's state and incoming data.
+     * @param Client $client Client instance.
      * @return void
      */
     private function processClient(Client $client): void
@@ -265,8 +265,8 @@ class Server
     }
 
     /**
-     * Removes disconnected client
-     * @param Client $client Client instance
+     * Removes disconnected client.
+     * @param Client $client Client instance.
      * @return void
      */
     private function removeClient(Client $client): void
@@ -280,8 +280,8 @@ class Server
     }
 
     /**
-     * Gets all active streams, including server stream
-     * @return array<int, resource> Returns active streams
+     * Gets all active streams, including server stream.
+     * @return array<int, resource> Returns active streams.
      */
     private function getReadableStreams(): array
     {
@@ -297,8 +297,8 @@ class Server
     }
 
     /**
-     * Gets all streams that have pending data in their write buffers
-     * @return array<int, resource> Returns streams ready for a write operation
+     * Gets all streams that have pending data in their write buffers.
+     * @return array<int, resource> Returns streams ready for a write operation.
      */
     private function getWritableStreams(): array
     {
@@ -314,8 +314,8 @@ class Server
     }
 
     /**
-     * Gets all clients connected to server
-     * @return array<int, Client> Returns connected clients
+     * Gets all clients connected to server.
+     * @return array<int, Client> Returns connected clients.
      */
     public function getClients(): array
     {
@@ -340,11 +340,11 @@ class Server
     ///////////// TIMERS ////////////
 
     /**
-     * Creates server timer
-     * @param (\Closure(): void) $function Callback function
-     * @param int $delay Timer delay (in milliseconds)
-     * @param bool $isPeriodic Whether timer repeats
-     * @return int Returns timer ID
+     * Creates server timer.
+     * @param (\Closure(): void) $function Callback function.
+     * @param int $delay Timer delay (in milliseconds).
+     * @param bool $isPeriodic Whether timer repeats.
+     * @return int Returns timer ID.
      */
     public function setTimer(\Closure $function, int $delay, bool $isPeriodic = false): int
     {
@@ -353,8 +353,8 @@ class Server
     }
 
     /**
-     * Cancels server timer
-     * @param int $timerId Timer ID
+     * Cancels server timer.
+     * @param int $timerId Timer ID.
      * @return void
      */
     public function clearTimer(int $timerId): void
@@ -365,7 +365,7 @@ class Server
     }
 
     /**
-     * Checks server timers
+     * Checks server timers.
      * @return void
      */
     private function checkTimers(): void
@@ -383,7 +383,7 @@ class Server
     }
 
     /**
-     * Create internal timers
+     * Create internal timers.
      * @return void
      */
     private function setInternalTimers(): void
@@ -426,9 +426,9 @@ class Server
     /////////// CALLBACKS ///////////
 
     /**
-     * Registers server callback
-     * @param Callback $callback Event
-     * @param \Closure|null $function Callback function or **NULL** to delete callback
+     * Registers server callback.
+     * @param Callback $callback Event.
+     * @param \Closure|null $function Callback function or **NULL** to delete callback.
      * @return void
      */
     private function on(Callback $callback, ?\Closure $function): void
@@ -441,10 +441,10 @@ class Server
     }
 
     /**
-     * Triggers server callback
-     * @param Callback $callback Event
-     * @param array $args Callback arguments
-     * @return string|float|int|bool Returns callback result
+     * Triggers server callback.
+     * @param Callback $callback Event.
+     * @param array $args Callback arguments.
+     * @return string|float|int|bool Returns callback result.
      */
     private function triggerCallback(Callback $callback, array $args = []): string|float|int|bool
     {
@@ -456,8 +456,8 @@ class Server
     }
 
     /**
-     * Registers server callback triggered on server start
-     * @param (\Closure(): void)|null $function Callback function
+     * Registers server callback triggered on server start.
+     * @param (\Closure(): void)|null $function Callback function.
      * @return void
      */
     public function onServerStart(?\Closure $function): void
@@ -466,8 +466,8 @@ class Server
     }
 
     /**
-     * Registers server callback triggered on server stop
-     * @param (\Closure(): void)|null $function Callback function
+     * Registers server callback triggered on server stop.
+     * @param (\Closure(): void)|null $function Callback function.
      * @return void
      */
     public function onServerStop(?\Closure $function): void
@@ -476,8 +476,8 @@ class Server
     }
 
     /**
-     * Registers server callback triggered on handshake request
-     * @param (\Closure(ClientInterface $client, RequestInterface $request): bool)|null $function Callback function
+     * Registers server callback triggered on handshake request.
+     * @param (\Closure(ClientInterface, RequestInterface): bool)|null $function Callback function.
      * @return void
      */
     public function onHandshake(?\Closure $function): void
@@ -486,8 +486,8 @@ class Server
     }
 
     /**
-     * Registers server callback triggered on client connect
-     * @param (\Closure(ClientInterface $client): void)|null $function Callback function
+     * Registers server callback triggered on client connect.
+     * @param (\Closure(ClientInterface): void)|null $function Callback function.
      * @return void
      */
     public function onClientConnect(?\Closure $function): void
@@ -496,8 +496,8 @@ class Server
     }
 
     /**
-     * Registers server callback triggered on client disconnect
-     * @param (\Closure(ClientInterface $client): void)|null $function Callback function
+     * Registers server callback triggered on client disconnect.
+     * @param (\Closure(ClientInterface): void)|null $function Callback function.
      * @return void
      */
     public function onClientDisconnect(?\Closure $function): void
@@ -506,8 +506,8 @@ class Server
     }
 
     /**
-     * Registers server callback triggered on message receive
-     * @param (\Closure(ClientInterface $client, Message $message): void)|null $function Callback function
+     * Registers server callback triggered on message receive.
+     * @param (\Closure(ClientInterface, Message): void)|null $function Callback function.
      * @return void
      */
     public function onMessageReceive(?\Closure $function): void
