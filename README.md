@@ -71,9 +71,11 @@ $server->clearTimer($timerId);
 $server->onServerStart(function (): void {});
 // Server stops
 $server->onServerStop(function(): void {});
-// Client establishes connection and sends handshake request
-// Return TRUE to accept the request or FALSE to reject it and disconnect the client
-$server->onClientConnect(function ($client, $request): bool {});
+// Client sends handshake request
+// Return TRUE to accept the request or FALSE to reject it
+$server->onHandshake(function ($client, $request): bool {});
+// Client connects
+$server->onClientConnect(function ($client): void {});
 // Client disconnects
 $server->onClientDisconnect(function ($client): void {});
 // Client sends message

@@ -12,4 +12,5 @@ enum Callback: int
     case CLIENT_CONNECT     = 2;
     case CLIENT_DISCONNECT  = 3;
     case MESSAGE_RECEIVE    = 4;
+    case HANDSHAKE          = 5;
 }

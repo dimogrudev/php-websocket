@@ -242,9 +242,11 @@ class Server
     {
         if (!$client->isHandshakePerformed) {
             if ($request = $client->receiveRequest()) {
-                if ($this->triggerCallback(Callback::CLIENT_CONNECT, [$client, $request])) {
+                if ($this->triggerCallback(Callback::HANDSHAKE, [$client, $request])) {
                     $this->online++;
                     $client->acceptRequest();
+
+                    $this->triggerCallback(Callback::CLIENT_CONNECT, [$client]);
 
                     $secKey = $request->header('sec-websocket-key');
                     if (!$secKey || !$client->performHandshake($secKey)) {
@@ -474,8 +476,18 @@ class Server
     }
 
     /**
-     * Registers server callback triggered on client connect
+     * Registers server callback triggered on handshake request
      * @param (\Closure(ClientInterface $client, RequestInterface $request): bool)|null $function Callback function
+     * @return void
+     */
+    public function onHandshake(?\Closure $function): void
+    {
+        $this->on(Callback::HANDSHAKE, $function);
+    }
+
+    /**
+     * Registers server callback triggered on client connect
+     * @param (\Closure(ClientInterface $client): void)|null $function Callback function
      * @return void
      */
     public function onClientConnect(?\Closure $function): void
