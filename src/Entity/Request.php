@@ -9,8 +9,8 @@ use WebSocket\Contract\RequestInterface;
  */
 class Request implements RequestInterface
 {
-    const string REGEX_REQUEST      = '/^GET\x20(.+)\x20HTTP\/1\.1\r\n((?:[^\r\n]+\r\n)+)\r\n$/';
-    const string REGEX_HEADERS      = '/([^:]+):\x20*(.*)\r\n/';
+    const string REGEX_REQUEST      = '/^GET\x20([^\s]+)\x20HTTP\/1\.1\r?\n((?:[^\r\n]+\r?\n)+)\r?\n$/';
+    const string REGEX_HEADERS      = '/([a-zA-Z0-9!#$%&\'*+.^_`|~-]+):[\x20\t]*(.*?)[\x20\t]*\r?\n/';
 
     /////////////////////////////////
 
@@ -61,7 +61,7 @@ class Request implements RequestInterface
 
     /**
      * Gets header value.
-     * @param string $name Header name.
+     * @param string $name Header name (case-insensitive).
      * @return string|null Returns header value or **NULL** on failure.
      */
     public function header(string $name): ?string
@@ -76,13 +76,11 @@ class Request implements RequestInterface
 
     /**
      * Gets query value.
-     * @param string $name Query parameter.
+     * @param string $name Query parameter (case-sensitive).
      * @return string|array|null Returns query value or **NULL** on failure.
      */
     public function query(string $name): string|array|null
     {
-        $name = strtolower($name);
-
         if (isset($this->params[$name])) {
             return $this->params[$name];
         }
@@ -91,13 +89,11 @@ class Request implements RequestInterface
 
     /**
      * Gets cookie value.
-     * @param string $name Cookie name.
+     * @param string $name Cookie name (case-sensitive).
      * @return string|null Returns cookie value or **NULL** on failure.
      */
     public function cookie(string $name): ?string
     {
-        $name = strtolower($name);
-
         if (isset($this->cookies[$name])) {
             return $this->cookies[$name];
         }
@@ -115,6 +111,8 @@ class Request implements RequestInterface
         $urlParts = [];
         /** @var array<string, string> $headers */
         $headers = [];
+
+        $raw = ltrim($raw, "\r\n");
 
         if (
             self::parseRaw($raw, $urlParts, $headers)
@@ -167,11 +165,24 @@ class Request implements RequestInterface
      */
     private static function parseHeaders(string $raw, &$headers): bool
     {
-        if (preg_match_all(self::REGEX_HEADERS, $raw, $matches)) {
-            $headers = array_combine(
-                array_map('strtolower', $matches[1]),
-                array_map('rtrim', $matches[2])
-            ) ?: [];
+        if (preg_match_all(self::REGEX_HEADERS, $raw, $matches, PREG_SET_ORDER)) {
+            $headers = [];
+
+            foreach ($matches as $match) {
+                $name = strtolower($match[1]);
+                $value = $match[2];
+
+                if (isset($headers[$name])) {
+                    if ($name === 'host') {
+                        return false;
+                    }
+
+                    $separator = ($name === 'cookie') ? '; ' : ', ';
+                    $headers[$name] .= $separator . $value;
+                } else {
+                    $headers[$name] = $value;
+                }
+            }
             return true;
         }
 
@@ -188,7 +199,7 @@ class Request implements RequestInterface
     {
         if (
             // Must have 'Host' header field
-            isset($headers['host']) && $headers['host']
+            isset($headers['host']) && trim($headers['host']) !== ''
             // Must have 'Upgrade' header field containing value 'websocket'
             && isset($headers['upgrade']) && mb_stripos($headers['upgrade'], 'websocket', encoding: 'ASCII') !== false
             // Must have 'Connection' header field containing value 'Upgrade'
