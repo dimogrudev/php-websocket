@@ -65,7 +65,7 @@ class Server
         private readonly int $maxFrameBufferSize = 8,
         private readonly int $maxChunksPerFrame = 8,
         private readonly int $maxChunkLength = 1024,
-        private readonly int $eventLoopTimeout = 1000
+        private readonly int $eventLoopTimeout = 50
     ) {
         $this->setInternalTimers();
     }
