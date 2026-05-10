@@ -16,13 +16,15 @@ class Timer
      * @param \Closure $function Timer function.
      * @param int $delay Timer delay (in milliseconds).
      * @param bool $isPeriodic Whether timer repeats.
+     * @param float|null $microtime Current timestamp with microseconds.
      */
     public function __construct(
         private readonly \Closure $function,
         private readonly int $delay,
-        private readonly bool $isPeriodic
+        private readonly bool $isPeriodic,
+        ?float $microtime = null
     ) {
-        $this->executedAt = microtime(true);
+        $this->executedAt = $microtime ?? microtime(true);
     }
 
     /**
