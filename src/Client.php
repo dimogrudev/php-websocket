@@ -8,6 +8,7 @@ use WebSocket\Entity\Request;
 use WebSocket\Protocol\Frame;
 use WebSocket\Registry\Opcode;
 use WebSocket\Registry\StatusCode;
+use WebSocket\Service\RequestParser;
 
 /**
  * Represents client entity.
@@ -65,6 +66,7 @@ class Client implements ClientInterface
     /////////////////////////////////
 
     /**
+     * @param RequestParser $requestParser Request parser service.
      * @param resource $stream Client stream.
      * @param string $ipAddr Client IP address.
      * @param int $maxFrameBufferSize Maximum size of fragmentation buffer.
@@ -72,6 +74,7 @@ class Client implements ClientInterface
      * @param int $maxChunkLength Maximum size (in bytes) of each chunk.
      */
     public function __construct(
+        private readonly RequestParser $requestParser,
         private(set) mixed $stream,
         private(set) string $ipAddr,
         private int $maxFrameBufferSize = 8,
@@ -192,7 +195,7 @@ class Client implements ClientInterface
                 $dataLength = $pos + 4;
                 $requestData = substr($buffer, 0, $dataLength);
 
-                if ($request = Request::parse($requestData)) {
+                if ($request = $this->requestParser->parse($requestData)) {
                     $this->discardReadData($dataLength);
                     $this->isRequestReceived = true;
                     return $request;

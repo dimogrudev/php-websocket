@@ -8,6 +8,7 @@ use WebSocket\Entity\Message;
 use WebSocket\Entity\Timer;
 use WebSocket\Registry\Callback;
 use WebSocket\Registry\StatusCode;
+use WebSocket\Service\RequestParser;
 
 /**
  * Represents main server class.
@@ -18,6 +19,9 @@ class Server
     const int INTERVAL_PING             = 20000;
 
     /////////////////////////////////
+
+    /** @var RequestParser $requestParser Request parser service. */
+    private readonly RequestParser $requestParser;
 
     /** @var resource $stream Server stream. */
     private mixed $stream;
@@ -67,6 +71,7 @@ class Server
         private readonly int $maxChunkLength = 1024,
         private readonly int $eventLoopTimeout = 50
     ) {
+        $this->requestParser = new RequestParser();
         $this->setInternalTimers();
     }
 
@@ -111,7 +116,7 @@ class Server
 
         $serverId = intval($this->stream);
         $this->clients = [
-            $serverId => new Client($this->stream, $this->host)
+            $serverId => new Client($this->requestParser, $this->stream, $this->host)
         ];
 
         $loopTimeoutMicro = $this->eventLoopTimeout * 1000;
@@ -223,7 +228,14 @@ class Server
             $ipAddr = Client::extractIp($incomingStream);
 
             if ($ipAddr) {
-                $this->clients[$streamId] = new Client($incomingStream, $ipAddr, $this->maxFrameBufferSize, $this->maxChunksPerFrame, $this->maxChunkLength);
+                $this->clients[$streamId] = new Client(
+                    $this->requestParser,
+                    $incomingStream,
+                    $ipAddr,
+                    $this->maxFrameBufferSize,
+                    $this->maxChunksPerFrame,
+                    $this->maxChunkLength
+                );
                 return true;
             } else {
                 @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);

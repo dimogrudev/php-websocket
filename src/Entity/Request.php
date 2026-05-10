@@ -5,59 +5,24 @@ namespace WebSocket\Entity;
 use WebSocket\Contract\RequestInterface;
 
 /**
- * Represents request entity.
+ * Represents handshake request value object.
  */
-class Request implements RequestInterface
+readonly class Request implements RequestInterface
 {
-    const string REGEX_REQUEST      = '/^GET\x20([^\s]+)\x20HTTP\/1\.1\r?\n((?:[^\r\n]+\r?\n)+)\r?\n$/';
-    const string REGEX_HEADERS      = '/([a-zA-Z0-9!#$%&\'*+.^_`|~-]+):[\x20\t]*(.*?)[\x20\t]*\r?\n/';
-
-    /////////////////////////////////
-
-    /** @var array<string, string|array> $params Query parameters. */
-    private array $params           = [];
-    /** @var array<string, string> $cookies Cookies. */
-    private array $cookies          = [];
-
-    /////////////////////////////////
-
     /**
      * @param string $path Request path.
      * @param array<string, string> $headers Headers.
+     * @param array<string, string|array> $params Query parameters.
+     * @param array<string, string> $cookies Cookies.
      */
-    private function __construct(
-        public readonly string $path,
-        private readonly array $headers
+    public function __construct(
+        public string $path,
+        private array $headers,
+        private array $params = [],
+        private array $cookies = []
     ) {}
 
-    /**
-     * Parses query parameters from string.
-     * @param string $queryString Query string.
-     * @return void
-     */
-    private function parseQueryString(string $queryString): void
-    {
-        $this->params = [];
-        parse_str($queryString, $this->params);
-    }
-
-    /**
-     * Parses cookies from string.
-     * @param string $cookieHeader Cookie header.
-     * @return void
-     */
-    private function parseCookies(string $cookieHeader): void
-    {
-        $this->cookies = [];
-
-        foreach ((preg_split('/;\x20?/', $cookieHeader) ?: []) as $cookie) {
-            $cookie = urldecode($cookie);
-
-            if (preg_match('/^([^=]+)=(.*)$/', trim($cookie), $matches)) {
-                $this->cookies[$matches[1]] = $matches[2];
-            }
-        }
-    }
+    /////////////////////////////////
 
     /**
      * Gets header value.
@@ -98,124 +63,5 @@ class Request implements RequestInterface
             return $this->cookies[$name];
         }
         return null;
-    }
-
-    /**
-     * Parses request instance from raw header data.
-     * @param string $raw Raw header data.
-     * @return self|null Returns request instance or **NULL** on failure.
-     */
-    public static function parse(string $raw): ?self
-    {
-        /** @var array<string, string> $urlParts */
-        $urlParts = [];
-        /** @var array<string, string> $headers */
-        $headers = [];
-
-        $raw = ltrim($raw, "\r\n");
-
-        if (
-            self::parseRaw($raw, $urlParts, $headers)
-            && self::checkRequiredHeaders($headers)
-        ) {
-            $entity = new self($urlParts['path'], $headers);
-
-            if (isset($urlParts['query'])) {
-                $entity->parseQueryString($urlParts['query']);
-            }
-            if (isset($headers['cookie'])) {
-                $entity->parseCookies($headers['cookie']);
-            }
-
-            return $entity;
-        }
-
-        return null;
-    }
-
-    /**
-     * Parses raw header data.
-     * @param string $raw Raw header data.
-     * @param array<string, string> &$urlParts URL parts.
-     * @param array<string, string> &$headers Headers.
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
-     */
-    private static function parseRaw(string $raw, &$urlParts, &$headers): bool
-    {
-        if (preg_match(self::REGEX_REQUEST, $raw, $matches)) {
-            $requestParts = array_combine(['url', 'headers'], array_slice($matches, 1));
-
-            if ($requestParts) {
-                $urlParts = parse_url($requestParts['url']) ?: [];
-
-                if ($urlParts && isset($urlParts['path']) && !isset($urlParts['fragment'])) {
-                    return self::parseHeaders($requestParts['headers'], $headers);
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Parses raw headers string.
-     * @param string $raw Source headers string.
-     * @param array<string, string> &$headers Headers.
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
-     */
-    private static function parseHeaders(string $raw, &$headers): bool
-    {
-        if (preg_match_all(self::REGEX_HEADERS, $raw, $matches, PREG_SET_ORDER)) {
-            $headers = [];
-
-            foreach ($matches as $match) {
-                $name = strtolower($match[1]);
-                $value = $match[2];
-
-                if (isset($headers[$name])) {
-                    if ($name === 'host') {
-                        return false;
-                    }
-
-                    $separator = ($name === 'cookie') ? '; ' : ', ';
-                    $headers[$name] .= $separator . $value;
-                } else {
-                    $headers[$name] = $value;
-                }
-            }
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * Determines whether headers match requirements or not.
-     * @param array<string, string> $headers Headers array.
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
-     * @see https://datatracker.ietf.org/doc/html/rfc6455#section-4.2.1
-     */
-    private static function checkRequiredHeaders(array $headers): bool
-    {
-        if (
-            // Must have 'Host' header field
-            isset($headers['host']) && trim($headers['host']) !== ''
-            // Must have 'Upgrade' header field containing value 'websocket'
-            && isset($headers['upgrade']) && mb_stripos($headers['upgrade'], 'websocket', encoding: 'ASCII') !== false
-            // Must have 'Connection' header field containing value 'Upgrade'
-            && isset($headers['connection']) && mb_stripos($headers['connection'], 'upgrade', encoding: 'ASCII') !== false
-            // Must have 'Sec-WebSocket-Key' header field
-            && isset($headers['sec-websocket-key']) && $headers['sec-websocket-key']
-            // Must have 'Sec-WebSocket-Version' header field, with value of 13
-            && isset($headers['sec-websocket-version']) && $headers['sec-websocket-version'] === '13'
-        ) {
-            $secKey = base64_decode($headers['sec-websocket-key'], true);
-
-            // 'Sec-WebSocket-Key' header field must be base64-encoded 16-byte value
-            if ($secKey && strlen($secKey) === 16) {
-                return true;
-            }
-        }
-        return false;
     }
 }
