@@ -11,12 +11,12 @@ class MessageTest extends TestCase
     public static function lengthProvider(): array
     {
         return [
-            'multibyte text'   => ['здравейте', false, 9],
-            'emoji text'       => ['👋', false, 1],
-            'binary emoji'     => ['👋', true, 4],
-            'empty string'     => ['', false, 0],
-            'standard latin'   => ['hello', false, 5],
-            'binary latin'     => ['hello', true, 5],
+            'multibyte text'    => ['здравейте', false, 9],
+            'emoji text'        => ['👋', false, 1],
+            'binary emoji'      => ['👋', true, 4],
+            'empty string'      => ['', false, 0],
+            'standard latin'    => ['hello', false, 5],
+            'binary latin'      => ['hello', true, 5],
         ];
     }
 

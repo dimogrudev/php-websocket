@@ -13,10 +13,10 @@ class TimerTest extends TestCase
     public static function timerScenarioProvider(): array
     {
         return [
-            'before delay'     => [100, false, 0.050, false, true],
-            'exact delay'      => [100, false, 0.100, true, false],
-            'after delay'      => [100, false, 0.150, true, false],
-            'periodic remains' => [100, true, 0.100, true, true],
+            'before delay'      => [100, false, 0.050, false, true],
+            'exact delay'       => [100, false, 0.100, true, false],
+            'after delay'       => [100, false, 0.150, true, false],
+            'periodic remains'  => [100, true, 0.100, true, true],
         ];
     }
 
