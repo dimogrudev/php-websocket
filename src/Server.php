@@ -116,7 +116,7 @@ class Server
 
         $serverId = intval($this->stream);
         $this->clients = [
-            $serverId => new Client($this->requestParser, $this->stream, $this->host)
+            $serverId => new Client($this->requestParser, $this->stream, $this->host, $this->sslContext !== null)
         ];
 
         $loopTimeoutMicro = $this->eventLoopTimeout * 1000;
@@ -192,6 +192,11 @@ class Server
         if (!$stream) {
             throw new \Exception("Socket initialization error: (#$errno) {$errstr}");
         }
+        if (!@stream_set_blocking($stream, false)) {
+            @fclose($stream);
+            throw new \Exception("Failed to set non-blocking mode on server socket");
+        }
+
         $this->stream = $stream;
 
         $this->isRunning = true;
@@ -207,6 +212,8 @@ class Server
     private function shutdown(): void
     {
         @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
+        @fclose($this->stream);
+
         unset($this->stream);
 
         $this->clients = [];
@@ -224,22 +231,31 @@ class Server
         $incomingStream = @stream_socket_accept($this->stream, 0);
 
         if (is_resource($incomingStream)) {
+            if (!@stream_set_blocking($incomingStream, false)) {
+                @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);
+                @fclose($incomingStream);
+                return false;
+            }
+
             $streamId = intval($incomingStream);
             $ipAddr = Client::extractIp($incomingStream);
 
-            if ($ipAddr) {
-                $this->clients[$streamId] = new Client(
-                    $this->requestParser,
-                    $incomingStream,
-                    $ipAddr,
-                    $this->maxFrameBufferSize,
-                    $this->maxChunksPerFrame,
-                    $this->maxChunkLength
-                );
-                return true;
-            } else {
+            if (!$ipAddr) {
                 @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);
+                @fclose($incomingStream);
+                return false;
             }
+
+            $this->clients[$streamId] = new Client(
+                $this->requestParser,
+                $incomingStream,
+                $ipAddr,
+                $this->sslContext !== null,
+                $this->maxFrameBufferSize,
+                $this->maxChunksPerFrame,
+                $this->maxChunkLength
+            );
+            return true;
         }
 
         return false;

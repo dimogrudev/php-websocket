@@ -77,6 +77,7 @@ class Client implements ClientInterface
         private readonly RequestParser $requestParser,
         private(set) mixed $stream,
         private(set) string $ipAddr,
+        private readonly bool $isSecure,
         private int $maxFrameBufferSize = 8,
         private int $maxChunksPerFrame = 8,
         private int $maxChunkLength = 1024
@@ -96,7 +97,9 @@ class Client implements ClientInterface
     {
         if ($this->isConnected) {
             $this->isConnected = false;
+
             @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
+            @fclose($this->stream);
         }
     }
 
@@ -107,10 +110,23 @@ class Client implements ClientInterface
     public function pull(): bool
     {
         if ($this->isConnected && !isset($this->closeFrame)) {
+            if ($this->isSecure) {
+                while (openssl_error_string() !== false);
+            }
+
             $data = @fread($this->stream, $this->maxChunkLength);
 
-            if ($data === false || ($data === '' && feof($this->stream))) {
+            if ($data === false) {
+                if ($this->isSecure && openssl_error_string() === false) {
+                    return false;
+                }
+
                 $this->disconnect();
+                return false;
+            } else if ($data === '' && feof($this->stream)) {
+                $this->disconnect();
+                return false;
+            } else if ($data === '') {
                 return false;
             }
 
@@ -123,6 +139,7 @@ class Client implements ClientInterface
 
             return true;
         }
+
         return false;
     }
 
@@ -133,15 +150,23 @@ class Client implements ClientInterface
     public function push(): void
     {
         if ($this->isConnected && $this->hasDataToWrite) {
+            if ($this->isSecure) {
+                while (openssl_error_string() !== false);
+            }
+
             $written = @fwrite($this->stream, $this->writeBuffer);
 
             if ($written === false) {
+                if ($this->isSecure && openssl_error_string() === false) {
+                    return;
+                }
+
                 $this->disconnect();
                 return;
             }
 
             if ($written > 0) {
-                $this->writeBuffer = substr($this->writeBuffer, $written, null);
+                $this->writeBuffer = substr($this->writeBuffer, $written);
 
                 if (isset($this->closeFrame) && !$this->hasDataToWrite) {
                     $this->disconnect();
