@@ -10,7 +10,7 @@ use WebSocket\Entity\Request;
 class RequestParser
 {
     const string REGEX_REQUEST      = '/^GET\x20([^\s]+)\x20HTTP\/1\.1\r?\n((?:[^\r\n]+\r?\n)+)\r?\n$/';
-    const string REGEX_HEADERS      = '/([a-zA-Z0-9!#$%&\'*+.^_`|~-]+):[\x20\t]*(.*?)[\x20\t]*\r?\n/';
+    const string REGEX_HEADERS      = '/([a-zA-Z0-9!#$%&\'*+.^_`|~-]+)([\x20\t]*):[\x20\t]*(.*?)[\x20\t]*\r?\n/';
 
     /////////////////////////////////
 
@@ -80,7 +80,12 @@ class RequestParser
 
             foreach ($matches as $match) {
                 $name = strtolower($match[1]);
-                $value = $match[2];
+                $spacesBeforeColon = $match[2];
+                $value = $match[3];
+
+                if ($spacesBeforeColon !== '') {
+                    return false;
+                }
 
                 if (isset($headers[$name])) {
                     if ($name === 'host') {
