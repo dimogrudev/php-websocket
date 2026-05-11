@@ -81,17 +81,22 @@ class RequestParser
             foreach ($matches as $match) {
                 $name = strtolower($match[1]);
                 $spacesBeforeColon = $match[2];
-                $value = $match[3];
+                $value = trim($match[3]);
 
                 if ($spacesBeforeColon !== '') {
                     return false;
                 }
 
-                if (isset($headers[$name])) {
-                    if ($name === 'host') {
+                if ($name === 'host') {
+                    if (!preg_match('/^[a-z0-9.-]+(:[0-9]+)?$/i', $value)) {
                         return false;
                     }
+                    if (isset($headers[$name])) {
+                        return false;
+                    }
+                }
 
+                if (isset($headers[$name])) {
                     $separator = ($name === 'cookie') ? '; ' : ', ';
                     $headers[$name] .= $separator . $value;
                 } else {
@@ -114,7 +119,7 @@ class RequestParser
     {
         if (
             // Must have 'Host' header field
-            isset($headers['host']) && trim($headers['host']) !== ''
+            isset($headers['host']) && $headers['host'] !== ''
             // Must have 'Upgrade' header field containing value 'websocket'
             && isset($headers['upgrade']) && mb_stripos($headers['upgrade'], 'websocket', encoding: 'ASCII') !== false
             // Must have 'Connection' header field containing value 'Upgrade'
