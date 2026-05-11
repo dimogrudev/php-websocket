@@ -25,7 +25,7 @@ class Client implements ClientInterface
 
     /** @var int $id Client stream ID. */
     public int $id {
-        get => intval($this->stream);
+        get => get_resource_id($this->stream);
     }
 
     /** @var float $connectedAt Connection timestamp. */

@@ -114,7 +114,7 @@ class Server
         }
         $this->init();
 
-        $serverId = intval($this->stream);
+        $serverId = get_resource_id($this->stream);
         $this->clients = [
             $serverId => new Client($this->requestParser, $this->stream, $this->host, $this->sslContext !== null)
         ];
@@ -128,7 +128,7 @@ class Server
 
             if (stream_select($read, $write, $except, 0, $loopTimeoutMicro)) {
                 foreach ($read as $changingStream) {
-                    $streamId = intval($changingStream);
+                    $streamId = get_resource_id($changingStream);
 
                     if ($streamId === $serverId) {
                         $this->acceptIncomingStream();
@@ -145,7 +145,7 @@ class Server
                 }
 
                 foreach ($write as $changingStream) {
-                    $streamId = intval($changingStream);
+                    $streamId = get_resource_id($changingStream);
 
                     if (isset($this->clients[$streamId])) {
                         $client = $this->clients[$streamId];
@@ -237,7 +237,7 @@ class Server
                 return false;
             }
 
-            $streamId = intval($incomingStream);
+            $streamId = get_resource_id($incomingStream);
             $ipAddr = Client::extractIp($incomingStream);
 
             if (!$ipAddr) {
@@ -348,7 +348,7 @@ class Server
     public function getClients(): array
     {
         if (isset($this->stream)) {
-            $serverId = intval($this->stream);
+            $serverId = get_resource_id($this->stream);
             $clients = [];
 
             foreach ($this->clients as $streamId => $client) {
@@ -417,7 +417,7 @@ class Server
     private function setInternalTimers(): void
     {
         $this->setTimer(function (): void {
-            $serverId = intval($this->stream);
+            $serverId = get_resource_id($this->stream);
 
             foreach ($this->clients as $streamId => $client) {
                 if ($streamId !== $serverId) {
@@ -439,7 +439,7 @@ class Server
         }, self::INTERVAL_CHECK_TIMEOUTS, true);
 
         $this->setTimer(function (): void {
-            $serverId = intval($this->stream);
+            $serverId = get_resource_id($this->stream);
 
             foreach ($this->clients as $streamId => $client) {
                 if ($streamId !== $serverId) {
