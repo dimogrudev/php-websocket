@@ -35,10 +35,8 @@ class Timer
     public function checkDelay(?float $microtime = null): bool
     {
         if ($this->isEnabled) {
-            if ($microtime === null) {
-                /** @var float $microtime */
-                $microtime = microtime(true);
-            }
+            /** @var float $microtime */
+            $microtime ??= microtime(true);
 
             if (($microtime - $this->executedAt) * 1000 >= $this->delay) {
                 ($this->function)();

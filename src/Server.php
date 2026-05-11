@@ -71,7 +71,7 @@ class Server
         private readonly int $maxChunkLength = 1024,
         private readonly int $eventLoopTimeout = 50
     ) {
-        $this->requestParser = new RequestParser();
+        $this->requestParser = new RequestParser;
         $this->setInternalTimers();
     }
 
@@ -88,7 +88,7 @@ class Server
             throw new \Exception("Websocket server is already running");
         }
         if ($isEnabled) {
-            if (!$crtPath || !$keyPath) {
+            if ($crtPath === null || $keyPath === null) {
                 throw new \Exception("You must provide SSL/TLS certificate files to enable encryption");
             }
 
@@ -183,13 +183,13 @@ class Server
      */
     private function init(): void
     {
-        if ($this->sslContext) {
+        if ($this->sslContext !== null) {
             $stream = @stream_socket_server("tls://{$this->host}:{$this->port}", $errno, $errstr, context: $this->sslContext);
         } else {
             $stream = @stream_socket_server("tcp://{$this->host}:{$this->port}", $errno, $errstr);
         }
 
-        if (!$stream) {
+        if (!is_resource($stream)) {
             throw new \Exception("Socket initialization error: (#$errno) {$errstr}");
         }
         if (!@stream_set_blocking($stream, false)) {
@@ -240,7 +240,7 @@ class Server
             $streamId = get_resource_id($incomingStream);
             $ipAddr = Client::extractIp($incomingStream);
 
-            if (!$ipAddr) {
+            if ($ipAddr === null) {
                 @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);
                 @fclose($incomingStream);
                 return false;
@@ -277,7 +277,7 @@ class Server
                     $this->triggerCallback(Callback::CLIENT_CONNECT, [$client]);
 
                     $secKey = $request->header('sec-websocket-key');
-                    if (!$secKey || !$client->performHandshake($secKey)) {
+                    if ($secKey === null || !$client->performHandshake($secKey)) {
                         $client->disconnect();
                     }
                 } else {
@@ -421,17 +421,17 @@ class Server
 
             foreach ($this->clients as $streamId => $client) {
                 if ($streamId !== $serverId) {
-                    $connected = $client->isConnected;
+                    $isConnected = $client->isConnected;
 
-                    if ($connected) {
-                        $connected = $client->checkTimeouts();
-                        if (!$connected && $client->isRequestAccepted) {
+                    if ($isConnected) {
+                        $isConnected = $client->checkTimeouts();
+                        if (!$isConnected && $client->isRequestAccepted) {
                             $this->online--;
                             $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
                         }
                     }
 
-                    if (!$connected) {
+                    if (!$isConnected) {
                         unset($this->clients[$streamId]);
                     }
                 }
@@ -443,7 +443,7 @@ class Server
 
             foreach ($this->clients as $streamId => $client) {
                 if ($streamId !== $serverId) {
-                    if ($client->stream && $client->isHandshakePerformed) {
+                    if ($client->isConnected && $client->isHandshakePerformed) {
                         $client->ping();
                     }
                 }
@@ -478,7 +478,7 @@ class Server
     {
         if (isset($this->callbacks[$callback->value])) {
             $result = $this->callbacks[$callback->value](...$args);
-            return ($result !== null) ? $result : true;
+            return $result ?? true;
         }
         return true;
     }

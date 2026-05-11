@@ -69,24 +69,21 @@ class Client implements ClientInterface
      * @param RequestParser $requestParser Request parser service.
      * @param resource $stream Client stream.
      * @param string $ipAddr Client IP address.
+     * @param bool $isSecure Whether connection is secure.
      * @param int $maxFrameBufferSize Maximum size of fragmentation buffer.
      * @param int $maxChunksPerFrame Maximum amount of data chunks per frame.
      * @param int $maxChunkLength Maximum size (in bytes) of each chunk.
      */
     public function __construct(
         private readonly RequestParser $requestParser,
-        private(set) mixed $stream,
-        private(set) string $ipAddr,
+        public readonly mixed $stream,
+        public readonly string $ipAddr,
         private readonly bool $isSecure,
-        private int $maxFrameBufferSize = 8,
-        private int $maxChunksPerFrame = 8,
-        private int $maxChunkLength = 1024
+        private readonly int $maxFrameBufferSize = 8,
+        private readonly int $maxChunksPerFrame = 8,
+        private readonly int $maxChunkLength = 1024
     ) {
-        /** @var float $microtime */
-        $microtime = microtime(true);
-
-        $this->connectedAt = $microtime;
-        $this->pingedAt = $microtime;
+        $this->connectedAt = microtime(true);
     }
 
     /**
@@ -335,7 +332,7 @@ class Client implements ClientInterface
     {
         $frame = Frame::parse($this);
 
-        if (!$frame) {
+        if ($frame === null) {
             return null;
         }
 

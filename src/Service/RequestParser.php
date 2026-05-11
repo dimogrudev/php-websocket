@@ -115,14 +115,14 @@ class RequestParser
             // Must have 'Connection' header field containing value 'Upgrade'
             && isset($headers['connection']) && mb_stripos($headers['connection'], 'upgrade', encoding: 'ASCII') !== false
             // Must have 'Sec-WebSocket-Key' header field
-            && isset($headers['sec-websocket-key']) && $headers['sec-websocket-key']
+            && isset($headers['sec-websocket-key'])
             // Must have 'Sec-WebSocket-Version' header field, with value of 13
             && isset($headers['sec-websocket-version']) && $headers['sec-websocket-version'] === '13'
         ) {
             $secKey = base64_decode($headers['sec-websocket-key'], true);
 
             // 'Sec-WebSocket-Key' header field must be base64-encoded 16-byte value
-            if ($secKey && strlen($secKey) === 16) {
+            if ($secKey !== false && strlen($secKey) === 16) {
                 return true;
             }
         }

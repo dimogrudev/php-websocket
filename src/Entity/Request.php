@@ -32,11 +32,7 @@ readonly class Request implements RequestInterface
     public function header(string $name): ?string
     {
         $name = strtolower($name);
-
-        if (isset($this->headers[$name])) {
-            return $this->headers[$name];
-        }
-        return null;
+        return $this->headers[$name] ?? null;
     }
 
     /**
@@ -46,10 +42,7 @@ readonly class Request implements RequestInterface
      */
     public function query(string $name): string|array|null
     {
-        if (isset($this->params[$name])) {
-            return $this->params[$name];
-        }
-        return null;
+        return $this->params[$name] ?? null;
     }
 
     /**
@@ -59,9 +52,6 @@ readonly class Request implements RequestInterface
      */
     public function cookie(string $name): ?string
     {
-        if (isset($this->cookies[$name])) {
-            return $this->cookies[$name];
-        }
-        return null;
+        return $this->cookies[$name] ?? null;
     }
 }
