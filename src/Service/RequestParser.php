@@ -75,7 +75,14 @@ class RequestParser
      */
     private function parseHeaders(string $raw, &$headers): bool
     {
-        if (preg_match_all(self::REGEX_HEADERS, $raw, $matches, PREG_SET_ORDER)) {
+        if (preg_match('/[^\x20-\x7E\t\r\n]/', $raw)) {
+            return false;
+        }
+
+        $count = preg_match_all(self::REGEX_HEADERS, $raw, $matches, PREG_SET_ORDER) ?: 0;
+        $lines = preg_split('/\r?\n/', trim($raw), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        if ($count === count($lines)) {
             $headers = [];
 
             foreach ($matches as $match) {
