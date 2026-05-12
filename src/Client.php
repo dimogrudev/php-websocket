@@ -212,13 +212,15 @@ class Client implements ClientInterface
         if (!$this->isRequestReceived) {
             $buffer = $this->readRaw();
 
-            $pos = false;
-            $len = 0;
+            $posCRLF = strpos($buffer, "\r\n\r\n");
+            $posLF = strpos($buffer, "\n\n");
 
-            if (($pos = strpos($buffer, "\r\n\r\n")) !== false) {
+            if ($posCRLF !== false && ($posLF === false || $posCRLF < $posLF)) {
+                $pos = $posCRLF;
                 $len = 4;
-            } elseif (($pos = strpos($buffer, "\n\n")) !== false) {
-                $len = 2;
+            } else {
+                $pos = $posLF;
+                $len = ($posLF !== false) ? 2 : 0;
             }
 
             if ($pos !== false) {
