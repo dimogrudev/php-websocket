@@ -132,7 +132,7 @@ class Server
 
                     if ($streamId === $serverId) {
                         $this->acceptIncomingStream();
-                    } else if (isset($this->clients[$streamId])) {
+                    } elseif (isset($this->clients[$streamId])) {
                         $client = $this->clients[$streamId];
 
                         if ($client->pull()) {
@@ -463,7 +463,7 @@ class Server
     {
         if ($function) {
             $this->callbacks[$callback->value] = $function;
-        } else if (isset($this->callbacks[$callback->value])) {
+        } elseif (isset($this->callbacks[$callback->value])) {
             unset($this->callbacks[$callback->value]);
         }
     }

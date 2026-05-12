@@ -120,10 +120,10 @@ class Client implements ClientInterface
 
                 $this->disconnect();
                 return false;
-            } else if ($data === '' && feof($this->stream)) {
+            } elseif ($data === '' && feof($this->stream)) {
                 $this->disconnect();
                 return false;
-            } else if ($data === '') {
+            } elseif ($data === '') {
                 return false;
             }
 
@@ -354,12 +354,12 @@ class Client implements ClientInterface
                 $this->sendRaw(
                     $this->closeFrame->encode()
                 );
-            } else if ($frame->opcode === Opcode::PING) {
+            } elseif ($frame->opcode === Opcode::PING) {
                 $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
                 $this->sendRaw(
                     $pongFrame->encode()
                 );
-            } else if ($frame->opcode === Opcode::PONG) {
+            } elseif ($frame->opcode === Opcode::PONG) {
                 if (
                     isset($this->pingFrame)
                     && $this->pingFrame->payload === $frame->payload

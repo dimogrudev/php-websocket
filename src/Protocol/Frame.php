@@ -108,7 +108,7 @@ readonly class Frame
         if ($frameLength > 65535) {
             // Mask (1 bit) + Payload length (7 bits) + Extended (64 bits)
             $header .= pack('CJ', 0b00000000 | 127, $frameLength);
-        } else if ($frameLength > 125) {
+        } elseif ($frameLength > 125) {
             // Mask (1 bit) + Payload length (7 bits) + Extended (16 bits)
             $header .= pack('Cn', 0b00000000 | 126, $frameLength);
         } else {

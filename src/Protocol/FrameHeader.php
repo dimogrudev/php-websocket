@@ -81,7 +81,7 @@ readonly class FrameHeader
                             /** @var int|null $extendedLength */
                             $extendedLength = (unpack('J', $extendedData) ?: [1 => null])[1];
                         }
-                    } else if ($dataLength === 126) {
+                    } elseif ($dataLength === 126) {
                         // Extended payload length (16 bits)
                         $extendedData = $client->readRaw(2, $headerLength);
 
