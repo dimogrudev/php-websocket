@@ -211,10 +211,18 @@ class Client implements ClientInterface
     {
         if (!$this->isRequestReceived) {
             $buffer = $this->readRaw();
-            $pos = strpos($buffer, "\r\n\r\n");
+
+            $pos = false;
+            $len = 0;
+
+            if (($pos = strpos($buffer, "\r\n\r\n")) !== false) {
+                $len = 4;
+            } elseif (($pos = strpos($buffer, "\n\n")) !== false) {
+                $len = 2;
+            }
 
             if ($pos !== false) {
-                $dataLength = $pos + 4;
+                $dataLength = $pos + $len;
                 $requestData = substr($buffer, 0, $dataLength);
 
                 if ($request = $this->requestParser->parse($requestData)) {
