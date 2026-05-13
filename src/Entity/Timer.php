@@ -13,7 +13,7 @@ class Timer
     private float $executedAt;
 
     /**
-     * @param \Closure $function Timer function.
+     * @param \Closure $function Timer callback.
      * @param int $delay Timer delay (in milliseconds).
      * @param bool $isPeriodic Whether timer repeats.
      * @param float|null $microtime Current timestamp with microseconds.
@@ -28,26 +28,35 @@ class Timer
     }
 
     /**
-     * Checks whether timer can be executed or not.
+     * Evaluates timer state and triggers execution if delay has expired.
      * @param float|null $microtime Current timestamp with microseconds.
-     * @return bool Returns **TRUE** if timer is executed or **FALSE** otherwise.
+     * @return bool Returns **TRUE** if registered callback is executed or **FALSE** otherwise.
      */
-    public function checkDelay(?float $microtime = null): bool
+    public function tick(?float $microtime = null): bool
     {
         if ($this->isEnabled) {
             /** @var float $microtime */
             $microtime ??= microtime(true);
 
             if (($microtime - $this->executedAt) * 1000 >= $this->delay) {
-                ($this->function)();
-
-                $this->isEnabled = $this->isPeriodic;
-                $this->executedAt = $microtime;
-
+                $this->execute($microtime);
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Executes registered callback and updates timer state.
+     * @param float $microtime Current timestamp with microseconds.
+     * @return void
+     */
+    private function execute(float $microtime): void
+    {
+        ($this->function)();
+
+        $this->isEnabled = $this->isPeriodic;
+        $this->executedAt = $microtime;
     }
 }

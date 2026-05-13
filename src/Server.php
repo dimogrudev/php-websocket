@@ -402,7 +402,7 @@ class Server
         $microtime = microtime(true);
 
         foreach ($this->timers as $timerId => $timer) {
-            if ($timer->checkDelay($microtime)) {
+            if ($timer->tick($microtime)) {
                 if (!$timer->isEnabled) {
                     unset($this->timers[$timerId]);
                 }

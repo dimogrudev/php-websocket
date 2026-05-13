@@ -35,9 +35,9 @@ class TimerTest extends TestCase
         };
         $timer = new Timer($callback, $delay, $isPeriodic, self::BASE_TIME);
 
-        $result = $timer->checkDelay(self::BASE_TIME + $checkTimeOffset);
+        $result = $timer->tick(self::BASE_TIME + $checkTimeOffset);
 
-        $this->assertSame($expectedResult, $result, 'Return value of checkDelay() is incorrect.');
+        $this->assertSame($expectedResult, $result, 'Return value of tick() is incorrect.');
         $this->assertSame($expectedResult, $fired, 'Callback execution state mismatch.');
         $this->assertSame($expectedEnabled, $timer->isEnabled, 'Timer enabled state mismatch.');
     }
@@ -51,9 +51,9 @@ class TimerTest extends TestCase
         };
         $timer = new Timer($callback, 100, true, self::BASE_TIME);
 
-        $timer->checkDelay(self::BASE_TIME + 0.100);
-        $timer->checkDelay(self::BASE_TIME + 0.150);
-        $timer->checkDelay(self::BASE_TIME + 0.200);
+        $timer->tick(self::BASE_TIME + 0.100);
+        $timer->tick(self::BASE_TIME + 0.150);
+        $timer->tick(self::BASE_TIME + 0.200);
 
         $this->assertSame(2, $executions, 'Periodic timer should have fired twice.');
     }
