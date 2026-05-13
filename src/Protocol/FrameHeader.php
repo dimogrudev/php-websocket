@@ -52,6 +52,12 @@ readonly class FrameHeader
 
                 // Mask (1 bit)
                 $isMasked = (bool)($bytes[2] & 0b10000000);
+                // All frames sent from a client must be masked
+                if (!$isMasked) {
+                    $client->disconnect();
+                    return null;
+                }
+
                 // Payload length (7 bits)
                 $dataLength = $bytes[2] & 0b01111111;
 
