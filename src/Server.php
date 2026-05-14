@@ -119,46 +119,8 @@ class Server
             $serverId => new Client($this->requestParser, $this->stream, $this->host, $this->sslContext !== null)
         ];
 
-        $loopTimeoutMicro = $this->eventLoopTimeout * 1000;
-
         while ($this->isRunning) {
-            $read = $this->getReadableStreams();
-            $write = $this->getWritableStreams();
-            $except = null;
-
-            if (stream_select($read, $write, $except, 0, $loopTimeoutMicro)) {
-                foreach ($read as $changingStream) {
-                    $streamId = get_resource_id($changingStream);
-
-                    if ($streamId === $serverId) {
-                        $this->acceptIncomingStream();
-                    } elseif (isset($this->clients[$streamId])) {
-                        $client = $this->clients[$streamId];
-
-                        if ($client->pull()) {
-                            $this->processClient($client);
-                        }
-                        if (!$client->isConnected) {
-                            $this->removeClient($client);
-                        }
-                    }
-                }
-
-                foreach ($write as $changingStream) {
-                    $streamId = get_resource_id($changingStream);
-
-                    if (isset($this->clients[$streamId])) {
-                        $client = $this->clients[$streamId];
-                        $client->push();
-
-                        if (!$client->isConnected) {
-                            $this->removeClient($client);
-                        }
-                    }
-                }
-            }
-
-            $this->checkTimers();
+            $this->tick();
         }
 
         $this->shutdown();
@@ -174,6 +136,54 @@ class Server
         unset($this->startedAt);
     }
 
+    /**
+     * Executes single iteration of server's event loop.
+     * @return void
+     */
+    public function tick(): void
+    {
+        $loopTimeoutMicro = $this->eventLoopTimeout * 1000;
+
+        $read = $this->getReadableStreams();
+        $write = $this->getWritableStreams();
+        $except = null;
+
+        $serverId = get_resource_id($this->stream);
+
+        if (@stream_select($read, $write, $except, 0, $loopTimeoutMicro)) {
+            foreach ($read as $changingStream) {
+                $streamId = get_resource_id($changingStream);
+
+                if ($streamId === $serverId) {
+                    $this->acceptIncomingStream();
+                } elseif (isset($this->clients[$streamId])) {
+                    $client = $this->clients[$streamId];
+
+                    if ($client->pull()) {
+                        $this->processClient($client);
+                    }
+                    if (!$client->isConnected) {
+                        $this->removeClient($client);
+                    }
+                }
+            }
+
+            foreach ($write as $changingStream) {
+                $streamId = get_resource_id($changingStream);
+
+                if (isset($this->clients[$streamId])) {
+                    $client = $this->clients[$streamId];
+                    $client->push();
+
+                    if (!$client->isConnected) {
+                        $this->removeClient($client);
+                    }
+                }
+            }
+        }
+
+        $this->checkTimers();
+    }
 
     /////////////////////////////////
 
