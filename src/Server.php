@@ -109,21 +109,46 @@ class Server
      */
     public function start(): void
     {
-        if ($this->isRunning) {
-            throw new \Exception("Websocket server is already running");
+        if (!$this->isRunning) {
+            $serverStream = $this->createServerStream();
+            $this->setup($serverStream);
         }
-        $this->init();
-
-        $serverId = get_resource_id($this->stream);
-        $this->clients = [
-            $serverId => new Client($this->requestParser, $this->stream, $this->host, $this->sslContext !== null)
-        ];
 
         while ($this->isRunning) {
             $this->tick();
         }
 
         $this->shutdown();
+    }
+
+    /**
+     * Initializes server using provided stream resource.
+     * @param resource $stream Stream resource.
+     * @return void
+     */
+    public function setup(mixed $stream): void
+    {
+        if ($this->isRunning) {
+            throw new \Exception("Websocket server is already running");
+        }
+        if (!is_resource($stream)) {
+            throw new \InvalidArgumentException("Invalid stream resource provided");
+        }
+        if (!@stream_set_blocking($stream, false)) {
+            @fclose($stream);
+            throw new \Exception("Failed to set non-blocking mode on server socket");
+        }
+
+        $this->stream = $stream;
+        $this->isRunning = true;
+        $this->startedAt = time();
+
+        $serverId = get_resource_id($this->stream);
+        $this->clients = [
+            $serverId => new Client($this->requestParser, $this->stream, $this->host, $this->sslContext !== null)
+        ];
+
+        $this->triggerCallback(Callback::SERVER_START);
     }
 
     /**
@@ -188,10 +213,10 @@ class Server
     /////////////////////////////////
 
     /**
-     * Initializes server.
-     * @return void
+     * Creates server socket stream.
+     * @return resource Returns stream resource.
      */
-    private function init(): void
+    private function createServerStream(): mixed
     {
         if ($this->sslContext !== null) {
             $stream = @stream_socket_server("tls://{$this->host}:{$this->port}", $errno, $errstr, context: $this->sslContext);
@@ -202,17 +227,7 @@ class Server
         if (!is_resource($stream)) {
             throw new \Exception("Socket initialization error: (#$errno) {$errstr}");
         }
-        if (!@stream_set_blocking($stream, false)) {
-            @fclose($stream);
-            throw new \Exception("Failed to set non-blocking mode on server socket");
-        }
-
-        $this->stream = $stream;
-
-        $this->isRunning = true;
-        $this->startedAt = time();
-
-        $this->triggerCallback(Callback::SERVER_START);
+        return $stream;
     }
 
     /**
