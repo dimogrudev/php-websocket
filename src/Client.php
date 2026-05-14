@@ -340,34 +340,32 @@ class Client implements ClientInterface
      */
     public function receiveMessage(): ?Message
     {
-        $frame = Frame::parse($this);
+        while ($frame = Frame::parse($this)) {
+            if ($frame->opcode->isControl()) {
+                if ($frame->opcode === Opcode::CLOSE) {
+                    $this->closedAt = microtime(true);
 
-        if ($frame === null) {
-            return null;
-        }
-
-        if ($frame->opcode->isControl()) {
-            if ($frame->opcode === Opcode::CLOSE) {
-                $this->closedAt = microtime(true);
-
-                $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
-                $this->sendRaw(
-                    $this->closeFrame->encode()
-                );
-            } elseif ($frame->opcode === Opcode::PING) {
-                $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
-                $this->sendRaw(
-                    $pongFrame->encode()
-                );
-            } elseif ($frame->opcode === Opcode::PONG) {
-                if (
-                    isset($this->pingFrame)
-                    && $this->pingFrame->payload === $frame->payload
-                ) {
-                    unset($this->pingFrame);
+                    $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
+                    $this->sendRaw(
+                        $this->closeFrame->encode()
+                    );
+                } elseif ($frame->opcode === Opcode::PING) {
+                    $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
+                    $this->sendRaw(
+                        $pongFrame->encode()
+                    );
+                } elseif ($frame->opcode === Opcode::PONG) {
+                    if (
+                        isset($this->pingFrame)
+                        && $this->pingFrame->payload === $frame->payload
+                    ) {
+                        unset($this->pingFrame);
+                    }
                 }
+
+                continue;
             }
-        } else {
+
             if ($frame->opcode === Opcode::CONTINUATION) {
                 $bufferSize = count($this->frameBuffer);
 
@@ -378,9 +376,7 @@ class Client implements ClientInterface
 
                 $this->frameBuffer[] = $frame;
             } else {
-                $this->frameBuffer = [
-                    $frame
-                ];
+                $this->frameBuffer = [$frame];
             }
 
             if ($frame->isFinal) {
