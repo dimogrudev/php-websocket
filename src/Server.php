@@ -236,10 +236,20 @@ class Server
      */
     private function shutdown(): void
     {
-        @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
-        @fclose($this->stream);
+        if (isset($this->stream)) {
+            $serverId = get_resource_id($this->stream);
 
-        unset($this->stream);
+            foreach ($this->clients as $streamId => $client) {
+                if ($streamId !== $serverId) {
+                    $client->disconnect();
+                }
+            }
+
+            @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
+            @fclose($this->stream);
+
+            unset($this->stream);
+        }
 
         $this->clients = [];
         $this->online = 0;
