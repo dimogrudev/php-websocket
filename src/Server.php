@@ -143,12 +143,6 @@ class Server
         }
 
         $this->stream = $stream;
-
-        $serverId = get_resource_id($this->stream);
-        $this->clients = [
-            $serverId => new Client($this->requestParser, $this->stream, $this->host, $this->sslContext !== null)
-        ];
-
         $this->triggerCallback(Callback::SERVER_START);
     }
 
@@ -187,22 +181,22 @@ class Server
         $write = $this->getWritableStreams();
         $except = null;
 
-        $serverId = get_resource_id($this->stream);
-
         if (@stream_select($read, $write, $except, 0, $loopTimeoutMicro)) {
             foreach ($read as $changingStream) {
-                $streamId = get_resource_id($changingStream);
-
-                if ($streamId === $serverId) {
+                if ($changingStream === $this->stream) {
                     $this->acceptIncomingStream();
-                } elseif (isset($this->clients[$streamId])) {
-                    $client = $this->clients[$streamId];
+                } else {
+                    $streamId = get_resource_id($changingStream);
 
-                    if ($client->pull()) {
-                        $this->processClient($client);
-                    }
-                    if (!$client->isConnected) {
-                        $this->removeClient($client);
+                    if (isset($this->clients[$streamId])) {
+                        $client = $this->clients[$streamId];
+
+                        if ($client->pull()) {
+                            $this->processClient($client);
+                        }
+                        if (!$client->isConnected) {
+                            $this->removeClient($client);
+                        }
                     }
                 }
             }
@@ -262,15 +256,11 @@ class Server
      */
     private function closeConnections(): void
     {
+        foreach ($this->clients as $client) {
+            $client->disconnect();
+        }
+
         if (isset($this->stream)) {
-            $serverId = get_resource_id($this->stream);
-
-            foreach ($this->clients as $streamId => $client) {
-                if ($streamId !== $serverId) {
-                    $client->disconnect();
-                }
-            }
-
             @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
             @fclose($this->stream);
         }
@@ -367,11 +357,11 @@ class Server
      */
     private function getReadableStreams(): array
     {
-        $streams = [];
+        $streams = [$this->stream];
 
-        foreach ($this->clients as $streamId => $client) {
+        foreach ($this->clients as $client) {
             if ($client->isConnected) {
-                $streams[$streamId] = $client->stream;
+                $streams[] = $client->stream;
             }
         }
 
@@ -386,9 +376,9 @@ class Server
     {
         $streams = [];
 
-        foreach ($this->clients as $streamId => $client) {
+        foreach ($this->clients as $client) {
             if ($client->isConnected && $client->hasDataToWrite) {
-                $streams[$streamId] = $client->stream;
+                $streams[] = $client->stream;
             }
         }
 
@@ -401,22 +391,15 @@ class Server
      */
     public function getClients(): array
     {
-        if (isset($this->stream)) {
-            $serverId = get_resource_id($this->stream);
-            $clients = [];
+        $clients = [];
 
-            foreach ($this->clients as $streamId => $client) {
-                if (
-                    $streamId !== $serverId
-                    && $client->isConnected && $client->isHandshakePerformed
-                ) {
-                    $clients[] = $client;
-                }
+        foreach ($this->clients as $client) {
+            if ($client->isConnected && $client->isHandshakePerformed) {
+                $clients[] = $client;
             }
-
-            return $clients;
         }
-        return [];
+
+        return $clients;
     }
 
     ///////////// TIMERS ////////////
@@ -471,35 +454,27 @@ class Server
     private function setInternalTimers(): void
     {
         $this->setTimer(function (): void {
-            $serverId = get_resource_id($this->stream);
-
             foreach ($this->clients as $streamId => $client) {
-                if ($streamId !== $serverId) {
-                    $isConnected = $client->isConnected;
+                $isConnected = $client->isConnected;
 
-                    if ($isConnected) {
-                        $isConnected = $client->checkTimeouts();
-                        if (!$isConnected && $client->isRequestAccepted) {
-                            $this->online--;
-                            $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
-                        }
+                if ($isConnected) {
+                    $isConnected = $client->checkTimeouts();
+                    if (!$isConnected && $client->isRequestAccepted) {
+                        $this->online--;
+                        $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
                     }
+                }
 
-                    if (!$isConnected) {
-                        unset($this->clients[$streamId]);
-                    }
+                if (!$isConnected) {
+                    unset($this->clients[$streamId]);
                 }
             }
         }, self::INTERVAL_CHECK_TIMEOUTS, true);
 
         $this->setTimer(function (): void {
-            $serverId = get_resource_id($this->stream);
-
-            foreach ($this->clients as $streamId => $client) {
-                if ($streamId !== $serverId) {
-                    if ($client->isConnected && $client->isHandshakePerformed) {
-                        $client->ping();
-                    }
+            foreach ($this->clients as $client) {
+                if ($client->isConnected && $client->isHandshakePerformed) {
+                    $client->ping();
                 }
             }
         }, self::INTERVAL_PING, true);
