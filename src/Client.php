@@ -114,16 +114,22 @@ class Client implements ClientInterface
             $data = @fread($this->stream, $this->maxChunkLength);
 
             if ($data === false) {
-                if ($this->isSecure && openssl_error_string() === false) {
-                    return false;
+                if ($this->isSecure) {
+                    $sslError = openssl_error_string();
+
+                    if ($sslError !== false && preg_match('/WANT_(READ|WRITE)/i', $sslError)) {
+                        return false;
+                    }
                 }
 
                 $this->disconnect();
                 return false;
-            } elseif ($data === '' && feof($this->stream)) {
-                $this->disconnect();
-                return false;
             } elseif ($data === '') {
+                if (!$this->isSecure || feof($this->stream)) {
+                    $this->disconnect();
+                    return false;
+                }
+
                 return false;
             }
 
@@ -151,11 +157,19 @@ class Client implements ClientInterface
                 while (openssl_error_string() !== false);
             }
 
-            $written = @fwrite($this->stream, $this->writeBuffer);
+            $chunk = $this->isSecure
+                ? substr($this->writeBuffer, 0, 8192)
+                : $this->writeBuffer;
+
+            $written = @fwrite($this->stream, $chunk);
 
             if ($written === false) {
-                if ($this->isSecure && openssl_error_string() === false) {
-                    return;
+                if ($this->isSecure) {
+                    $sslError = openssl_error_string();
+
+                    if ($sslError !== false && preg_match('/WANT_(READ|WRITE)|WRITE_PENDING/i', $sslError)) {
+                        return;
+                    }
                 }
 
                 $this->disconnect();
@@ -349,6 +363,8 @@ class Client implements ClientInterface
                     $this->sendRaw(
                         $this->closeFrame->encode()
                     );
+
+                    return null;
                 } elseif ($frame->opcode === Opcode::PING) {
                     $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
                     $this->sendRaw(
@@ -437,7 +453,7 @@ class Client implements ClientInterface
      * @param resource $stream Source stream.
      * @return string|null Returns IP address on success or **NULL** otherwise.
      */
-    public static function extractIp($stream): ?string
+    public static function extractIp(mixed $stream): ?string
     {
         $socketName = @stream_socket_get_name($stream, true);
 
