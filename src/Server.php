@@ -84,8 +84,8 @@ class Server
      */
     public function encryption(bool $isEnabled, ?string $crtPath = null, ?string $keyPath = null): void
     {
-        if ($this->isRunning) {
-            throw new \Exception("Websocket server is already running");
+        if (isset($this->stream)) {
+            throw new \Exception("Websocket server is already initialized");
         }
         if ($isEnabled) {
             if ($crtPath === null || $keyPath === null) {
@@ -109,10 +109,13 @@ class Server
      */
     public function start(): void
     {
-        if (!$this->isRunning) {
+        if (!isset($this->stream)) {
             $serverStream = $this->createServerStream();
             $this->setup($serverStream);
         }
+
+        $this->isRunning = true;
+        $this->startedAt = time();
 
         while ($this->isRunning) {
             $this->tick();
@@ -128,8 +131,8 @@ class Server
      */
     public function setup(mixed $stream): void
     {
-        if ($this->isRunning) {
-            throw new \Exception("Websocket server is already running");
+        if (isset($this->stream)) {
+            throw new \Exception("Websocket server is already initialized");
         }
         if (!is_resource($stream)) {
             throw new \InvalidArgumentException("Invalid stream resource provided");
@@ -140,8 +143,6 @@ class Server
         }
 
         $this->stream = $stream;
-        $this->isRunning = true;
-        $this->startedAt = time();
 
         $serverId = get_resource_id($this->stream);
         $this->clients = [
@@ -158,7 +159,20 @@ class Server
     public function stop(): void
     {
         $this->isRunning = false;
-        unset($this->startedAt);
+    }
+
+    /**
+     * Resets server internal state and parameters to their default values.
+     * @return void
+     */
+    public function reset(): void
+    {
+        unset($this->stream);
+
+        $this->clients = [];
+        $this->online = 0;
+
+        $this->triggerCallback(Callback::SERVER_STOP);
     }
 
     /**
@@ -236,6 +250,18 @@ class Server
      */
     private function shutdown(): void
     {
+        $this->closeConnections();
+        $this->reset();
+
+        unset($this->startedAt);
+    }
+
+    /**
+     * Closes all active client connections and shuts down server socket stream.
+     * @return void
+     */
+    private function closeConnections(): void
+    {
         if (isset($this->stream)) {
             $serverId = get_resource_id($this->stream);
 
@@ -247,14 +273,7 @@ class Server
 
             @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
             @fclose($this->stream);
-
-            unset($this->stream);
         }
-
-        $this->clients = [];
-        $this->online = 0;
-
-        $this->triggerCallback(Callback::SERVER_STOP);
     }
 
     /**
