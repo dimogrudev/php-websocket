@@ -356,30 +356,10 @@ class Client implements ClientInterface
     {
         while ($frame = Frame::parse($this)) {
             if ($frame->opcode->isControl()) {
-                if ($frame->opcode === Opcode::CLOSE) {
-                    $this->closedAt = microtime(true);
-
-                    $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
-                    $this->sendRaw(
-                        $this->closeFrame->encode()
-                    );
-
-                    return null;
-                } elseif ($frame->opcode === Opcode::PING) {
-                    $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
-                    $this->sendRaw(
-                        $pongFrame->encode()
-                    );
-                } elseif ($frame->opcode === Opcode::PONG) {
-                    if (
-                        isset($this->pingFrame)
-                        && $this->pingFrame->payload === $frame->payload
-                    ) {
-                        unset($this->pingFrame);
-                    }
+                if ($this->handleControlFrame($frame)) {
+                    continue;
                 }
-
-                continue;
+                return null;
             }
 
             if ($frame->opcode === Opcode::CONTINUATION) {
@@ -417,6 +397,39 @@ class Client implements ClientInterface
         }
 
         return null;
+    }
+
+    /**
+     * Handles control frames (CLOSE, PING, PONG).
+     * @param Frame $frame Control frame.
+     * @return bool Whether further frame processing should continue.
+     */
+    private function handleControlFrame(Frame $frame): bool
+    {
+        if ($frame->opcode === Opcode::CLOSE) {
+            $this->closedAt = microtime(true);
+
+            $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
+            $this->sendRaw(
+                $this->closeFrame->encode()
+            );
+
+            return false;
+        } elseif ($frame->opcode === Opcode::PING) {
+            $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
+            $this->sendRaw(
+                $pongFrame->encode()
+            );
+        } elseif ($frame->opcode === Opcode::PONG) {
+            if (
+                isset($this->pingFrame)
+                && $this->pingFrame->payload === $frame->payload
+            ) {
+                unset($this->pingFrame);
+            }
+        }
+
+        return true;
     }
 
     /**
