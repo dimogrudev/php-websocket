@@ -5,7 +5,9 @@ namespace WebSocket;
 use WebSocket\Contract\ClientInterface;
 use WebSocket\Entity\Message;
 use WebSocket\Entity\Request;
+use WebSocket\Exception\ProtocolException;
 use WebSocket\Protocol\Frame;
+use WebSocket\Protocol\MessageBuilder;
 use WebSocket\Registry\Opcode;
 use WebSocket\Registry\StatusCode;
 use WebSocket\Service\RequestParser;
@@ -22,6 +24,9 @@ class Client implements ClientInterface
     const int TIMEOUT_HANDSHAKE             = 4000;
 
     /////////////////////////////////
+
+    /** @var MessageBuilder $messageBuilder Message builder component. */
+    private readonly MessageBuilder $messageBuilder;
 
     /** @var int $id Client stream ID. */
     public int $id {
@@ -49,9 +54,6 @@ class Client implements ClientInterface
     private Frame $pingFrame;
     /** @var Frame $closeFrame Close frame sent to client. */
     private Frame $closeFrame;
-
-    /** @var Frame[] $frameBuffer Fragmentation buffer. */
-    private array $frameBuffer              = [];
 
     /** @var string $readBuffer Read buffer. */
     private string $readBuffer              = '';
@@ -83,6 +85,7 @@ class Client implements ClientInterface
         private readonly int $maxChunksPerFrame = 8,
         private readonly int $maxChunkLength = 1024
     ) {
+        $this->messageBuilder = new MessageBuilder($maxFrameBufferSize);
         $this->connectedAt = microtime(true);
     }
 
@@ -362,37 +365,13 @@ class Client implements ClientInterface
                 return null;
             }
 
-            if ($frame->opcode === Opcode::CONTINUATION) {
-                $bufferSize = count($this->frameBuffer);
-
-                if ($bufferSize === 0 || $bufferSize >= $this->maxFrameBufferSize) {
-                    $this->disconnect();
-                    return null;
+            try {
+                if ($message = $this->messageBuilder->pushFrame($frame)) {
+                    return $message;
                 }
-
-                $this->frameBuffer[] = $frame;
-            } else {
-                $this->frameBuffer = [$frame];
-            }
-
-            if ($frame->isFinal) {
-                $opcode = $this->frameBuffer[0]->opcode;
-                $isBinary = $opcode === Opcode::BINARY;
-
-                $payloads = [];
-                foreach ($this->frameBuffer as $bufferedFrame) {
-                    $payloads[] = $bufferedFrame->payload ?? '';
-                }
-
-                $fullPayload = implode('', $payloads);
-                $this->frameBuffer = [];
-
-                if (!$isBinary && !mb_check_encoding($fullPayload, 'UTF-8')) {
-                    $this->disconnect();
-                    return null;
-                }
-
-                return new Message($fullPayload, $isBinary);
+            } catch (ProtocolException) {
+                $this->disconnect();
+                return null;
             }
         }
 
