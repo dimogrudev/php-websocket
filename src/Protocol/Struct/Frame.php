@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Protocol;
+namespace WebSocket\Protocol\Struct;
 
 use WebSocket\Exception\ProtocolException;
 use WebSocket\Registry\Opcode;
