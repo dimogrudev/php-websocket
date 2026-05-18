@@ -3,10 +3,12 @@
 namespace WebSocket;
 
 use WebSocket\Contract\ClientInterface;
+use WebSocket\Contract\ConnectionInterface;
 use WebSocket\Entity\Message;
 use WebSocket\Entity\Request;
 use WebSocket\Exception\ProtocolException;
 use WebSocket\Protocol\Frame;
+use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\MessageBuilder;
 use WebSocket\Registry\Opcode;
 use WebSocket\Registry\StatusCode;
@@ -15,7 +17,7 @@ use WebSocket\Service\RequestParser;
 /**
  * Represents client entity.
  */
-class Client implements ClientInterface
+class Client implements ClientInterface, ConnectionInterface
 {
     const string WEBSOCKET_GUID             = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -69,6 +71,7 @@ class Client implements ClientInterface
 
     /**
      * @param RequestParser $requestParser Request parser service.
+     * @param FrameParser $frameParser Frame parser service.
      * @param resource $stream Client stream.
      * @param string $ipAddr Client IP address.
      * @param bool $isSecure Whether connection is secure.
@@ -78,6 +81,7 @@ class Client implements ClientInterface
      */
     public function __construct(
         private readonly RequestParser $requestParser,
+        private readonly FrameParser $frameParser,
         public readonly mixed $stream,
         public readonly string $ipAddr,
         private readonly bool $isSecure,
@@ -138,7 +142,7 @@ class Client implements ClientInterface
 
             $this->readBuffer .= $data;
 
-            if (strlen($this->readBuffer) > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
+            if ($this->getReadBufferSize() > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
                 $this->disconnect();
                 return false;
             }
@@ -201,6 +205,15 @@ class Client implements ClientInterface
     }
 
     /**
+     * Gets total number of bytes currently stored in read buffer.
+     * @return int Returns buffer size in bytes.
+     */
+    public function getReadBufferSize(): int
+    {
+        return strlen($this->readBuffer);
+    }
+
+    /**
      * Discards processed data from read buffer.
      * @param int $length Length of raw data to be removed.
      * @return void
@@ -218,6 +231,15 @@ class Client implements ClientInterface
     public function sendRaw(string $data): void
     {
         $this->writeBuffer .= $data;
+    }
+
+    /**
+     * Gets total number of bytes currently queued in write buffer.
+     * @return int Returns buffer size in bytes.
+     */
+    public function getWriteBufferSize(): int
+    {
+        return strlen($this->writeBuffer);
     }
 
     /**
@@ -357,22 +379,21 @@ class Client implements ClientInterface
      */
     public function receiveMessage(): ?Message
     {
-        while ($frame = Frame::parse($this)) {
-            if ($frame->opcode->isControl()) {
-                if ($this->handleControlFrame($frame)) {
-                    continue;
+        try {
+            while ($frame = $this->frameParser->parse($this)) {
+                if ($frame->opcode->isControl()) {
+                    if ($this->handleControlFrame($frame)) {
+                        continue;
+                    }
+                    return null;
                 }
-                return null;
-            }
 
-            try {
                 if ($message = $this->messageBuilder->pushFrame($frame)) {
                     return $message;
                 }
-            } catch (ProtocolException) {
-                $this->disconnect();
-                return null;
             }
+        } catch (ProtocolException) {
+            $this->disconnect();
         }
 
         return null;
