@@ -4,8 +4,8 @@ namespace WebSocket;
 
 use WebSocket\Contract\ClientInterface;
 use WebSocket\Contract\RequestInterface;
-use WebSocket\Entity\Message;
-use WebSocket\Entity\Timer;
+use WebSocket\Domain\Message;
+use WebSocket\Infrastructure\Timer;
 use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\HandshakeParser;
 use WebSocket\Registry\Callback;

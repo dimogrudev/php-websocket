@@ -36,7 +36,7 @@ composer require dimogrudev/php-websocket
 use WebSocket\Server;
 use WebSocket\Contract\ClientInterface;
 use WebSocket\Contract\RequestInterface;
-use WebSocket\Entity\Message;
+use WebSocket\Domain\Message;
 
 require 'vendor/autoload.php';
 

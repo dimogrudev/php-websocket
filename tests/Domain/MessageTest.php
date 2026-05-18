@@ -1,10 +1,10 @@
 <?php
 
-namespace WebSocket\Test\Entity;
+namespace WebSocket\Test\Domain;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use WebSocket\Entity\Message;
+use WebSocket\Domain\Message;
 
 class MessageTest extends TestCase
 {

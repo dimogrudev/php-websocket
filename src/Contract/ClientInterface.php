@@ -2,7 +2,7 @@
 
 namespace WebSocket\Contract;
 
-use WebSocket\Entity\Message;
+use WebSocket\Domain\Message;
 use WebSocket\Registry\StatusCode;
 
 /**

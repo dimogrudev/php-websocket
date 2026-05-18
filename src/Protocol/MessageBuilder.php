@@ -2,7 +2,7 @@
 
 namespace WebSocket\Protocol;
 
-use WebSocket\Entity\Message;
+use WebSocket\Domain\Message;
 use WebSocket\Exception\ProtocolException;
 use WebSocket\Protocol\Struct\Frame;
 use WebSocket\Registry\Opcode;

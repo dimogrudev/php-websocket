@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Entity;
+namespace WebSocket\Domain;
 
 /**
  * Represents data message DTO.

@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Entity;
+namespace WebSocket\Domain;
 
 use WebSocket\Contract\RequestInterface;
 

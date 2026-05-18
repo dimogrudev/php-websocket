@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Entity;
+namespace WebSocket\Infrastructure;
 
 /**
  * Represents timer entity.

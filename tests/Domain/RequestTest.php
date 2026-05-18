@@ -3,7 +3,7 @@
 namespace WebSocket\Test\Entity;
 
 use PHPUnit\Framework\TestCase;
-use WebSocket\Entity\Request;
+use WebSocket\Domain\Request;
 
 class RequestTest extends TestCase
 {

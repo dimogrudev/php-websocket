@@ -1,10 +1,10 @@
 <?php
 
-namespace WebSocket\Test\Entity;
+namespace WebSocket\Test\Infrastructure;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use WebSocket\Entity\Timer;
+use WebSocket\Infrastructure\Timer;
 
 class TimerTest extends TestCase
 {

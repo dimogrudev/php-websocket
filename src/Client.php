@@ -4,8 +4,8 @@ namespace WebSocket;
 
 use WebSocket\Contract\ClientInterface;
 use WebSocket\Contract\ConnectionInterface;
-use WebSocket\Entity\Message;
-use WebSocket\Entity\Request;
+use WebSocket\Domain\Message;
+use WebSocket\Domain\Request;
 use WebSocket\Exception\ProtocolException;
 use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\HandshakeParser;

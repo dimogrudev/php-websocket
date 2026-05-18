@@ -2,7 +2,7 @@
 
 namespace WebSocket\Protocol;
 
-use WebSocket\Entity\Request;
+use WebSocket\Domain\Request;
 
 /**
  * Represents handshake request parser service.

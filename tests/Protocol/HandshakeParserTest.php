@@ -4,7 +4,7 @@ namespace WebSocket\Test\Protocol;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use WebSocket\Entity\Request;
+use WebSocket\Domain\Request;
 use WebSocket\Protocol\HandshakeParser;
 
 class HandshakeParserTest extends TestCase
