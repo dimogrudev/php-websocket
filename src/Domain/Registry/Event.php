@@ -1,11 +1,11 @@
 <?php
 
-namespace WebSocket\Registry;
+namespace WebSocket\Domain\Registry;
 
 /**
- * Represents callback registry.
+ * Represents event registry.
  */
-enum Callback: int
+enum Event: int
 {
     case SERVER_START       = 0;
     case SERVER_STOP        = 1;

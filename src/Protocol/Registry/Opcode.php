@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Registry;
+namespace WebSocket\Protocol\Registry;
 
 /**
  * Represents opcode registry.

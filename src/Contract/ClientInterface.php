@@ -3,7 +3,8 @@
 namespace WebSocket\Contract;
 
 use WebSocket\Domain\Message;
-use WebSocket\Registry\StatusCode;
+use WebSocket\Infrastructure\Http\Registry\ClientError;
+use WebSocket\Infrastructure\Http\Registry\Redirection;
 
 /**
  * Represents client interface for public API.
@@ -26,12 +27,12 @@ interface ClientInterface
      * Sends redirection header to the client.
      * @return void
      */
-    public function redirect(StatusCode\Redirection $code, string $location): void;
+    public function redirect(Redirection $code, string $location): void;
     /**
      * Sends error header to the client.
      * @return void
      */
-    public function error(StatusCode\ClientError $code): void;
+    public function error(ClientError $code): void;
 
     /**
      * Sends data message to the client.

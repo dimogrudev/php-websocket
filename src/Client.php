@@ -7,12 +7,13 @@ use WebSocket\Contract\ConnectionInterface;
 use WebSocket\Domain\Message;
 use WebSocket\Domain\Request;
 use WebSocket\Exception\ProtocolException;
+use WebSocket\Infrastructure\Http\Registry\ClientError;
+use WebSocket\Infrastructure\Http\Registry\Redirection;
 use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\HandshakeParser;
 use WebSocket\Protocol\MessageBuilder;
+use WebSocket\Protocol\Registry\Opcode;
 use WebSocket\Protocol\Struct\Frame;
-use WebSocket\Registry\Opcode;
-use WebSocket\Registry\StatusCode;
 
 /**
  * Represents client entity.
@@ -271,7 +272,7 @@ class Client implements ClientInterface, ConnectionInterface
                     $this->isRequestReceived = true;
                     return $request;
                 } else {
-                    $this->error(StatusCode\ClientError::BAD_REQUEST);
+                    $this->error(ClientError::BAD_REQUEST);
                     $this->disconnect();
                 }
             }
@@ -318,7 +319,7 @@ class Client implements ClientInterface, ConnectionInterface
      * Sends redirection header to the client.
      * @return void
      */
-    public function redirect(StatusCode\Redirection $code, string $location): void
+    public function redirect(Redirection $code, string $location): void
     {
         if (!$this->isHandshakePerformed) {
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
@@ -331,7 +332,7 @@ class Client implements ClientInterface, ConnectionInterface
      * Sends error header to the client.
      * @return void
      */
-    public function error(StatusCode\ClientError $code): void
+    public function error(ClientError $code): void
     {
         if (!$this->isHandshakePerformed) {
             $date = gmdate('D, d M Y H:i:s T');

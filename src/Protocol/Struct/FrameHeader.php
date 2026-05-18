@@ -2,7 +2,7 @@
 
 namespace WebSocket\Protocol\Struct;
 
-use WebSocket\Registry\Opcode;
+use WebSocket\Protocol\Registry\Opcode;
 
 /**
  * Represents frame header DTO.

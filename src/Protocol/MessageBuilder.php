@@ -4,8 +4,8 @@ namespace WebSocket\Protocol;
 
 use WebSocket\Domain\Message;
 use WebSocket\Exception\ProtocolException;
+use WebSocket\Protocol\Registry\Opcode;
 use WebSocket\Protocol\Struct\Frame;
-use WebSocket\Registry\Opcode;
 
 /**
  * Represents data message builder component.

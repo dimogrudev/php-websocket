@@ -3,7 +3,7 @@
 namespace WebSocket\Protocol\Struct;
 
 use WebSocket\Exception\ProtocolException;
-use WebSocket\Registry\Opcode;
+use WebSocket\Protocol\Registry\Opcode;
 
 /**
  * Represents frame value object.

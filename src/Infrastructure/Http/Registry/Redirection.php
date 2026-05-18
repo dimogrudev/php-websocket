@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Registry\StatusCode;
+namespace WebSocket\Infrastructure\Http\Registry;
 
 /**
  * Represents redirection message registry.

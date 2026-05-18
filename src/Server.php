@@ -5,11 +5,11 @@ namespace WebSocket;
 use WebSocket\Contract\ClientInterface;
 use WebSocket\Contract\RequestInterface;
 use WebSocket\Domain\Message;
+use WebSocket\Domain\Registry\Event;
+use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Infrastructure\Timer;
 use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\HandshakeParser;
-use WebSocket\Registry\Callback;
-use WebSocket\Registry\StatusCode;
 
 /**
  * Represents main server class.
@@ -148,7 +148,7 @@ class Server
         }
 
         $this->stream = $stream;
-        $this->triggerCallback(Callback::SERVER_START);
+        $this->triggerCallback(Event::SERVER_START);
     }
 
     /**
@@ -171,7 +171,7 @@ class Server
         $this->clients = [];
         $this->online = 0;
 
-        $this->triggerCallback(Callback::SERVER_STOP);
+        $this->triggerCallback(Event::SERVER_STOP);
     }
 
     /**
@@ -320,24 +320,24 @@ class Server
     {
         if (!$client->isHandshakePerformed) {
             if ($request = $client->receiveRequest()) {
-                if ($this->triggerCallback(Callback::HANDSHAKE, [$client, $request])) {
+                if ($this->triggerCallback(Event::HANDSHAKE, [$client, $request])) {
                     $this->online++;
                     $client->acceptRequest();
 
-                    $this->triggerCallback(Callback::CLIENT_CONNECT, [$client]);
+                    $this->triggerCallback(Event::CLIENT_CONNECT, [$client]);
 
                     $secKey = $request->header('sec-websocket-key');
                     if ($secKey === null || !$client->performHandshake($secKey)) {
                         $client->disconnect();
                     }
                 } else {
-                    $client->error(StatusCode\ClientError::FORBIDDEN);
+                    $client->error(ClientError::FORBIDDEN);
                     $client->disconnect();
                 }
             }
         } else {
             while ($message = $client->receiveMessage()) {
-                $this->triggerCallback(Callback::MESSAGE_RECEIVE, [$client, $message]);
+                $this->triggerCallback(Event::MESSAGE_RECEIVE, [$client, $message]);
             }
         }
     }
@@ -351,7 +351,7 @@ class Server
     {
         if ($client->isRequestAccepted) {
             $this->online--;
-            $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
+            $this->triggerCallback(Event::CLIENT_DISCONNECT, [$client]);
         }
 
         unset($this->clients[$client->id]);
@@ -467,7 +467,7 @@ class Server
                     $isConnected = $client->checkTimeouts();
                     if (!$isConnected && $client->isRequestAccepted) {
                         $this->online--;
-                        $this->triggerCallback(Callback::CLIENT_DISCONNECT, [$client]);
+                        $this->triggerCallback(Event::CLIENT_DISCONNECT, [$client]);
                     }
                 }
 
@@ -490,29 +490,29 @@ class Server
 
     /**
      * Registers server callback.
-     * @param Callback $callback Event.
+     * @param Event $event Callback event.
      * @param \Closure|null $function Callback function or **NULL** to delete callback.
      * @return void
      */
-    private function on(Callback $callback, ?\Closure $function): void
+    private function on(Event $event, ?\Closure $function): void
     {
         if ($function) {
-            $this->callbacks[$callback->value] = $function;
-        } elseif (isset($this->callbacks[$callback->value])) {
-            unset($this->callbacks[$callback->value]);
+            $this->callbacks[$event->value] = $function;
+        } elseif (isset($this->callbacks[$event->value])) {
+            unset($this->callbacks[$event->value]);
         }
     }
 
     /**
      * Triggers server callback.
-     * @param Callback $callback Event.
+     * @param Event $event Callback event.
      * @param array $args Callback arguments.
      * @return string|float|int|bool Returns callback result.
      */
-    private function triggerCallback(Callback $callback, array $args = []): string|float|int|bool
+    private function triggerCallback(Event $event, array $args = []): string|float|int|bool
     {
-        if (isset($this->callbacks[$callback->value])) {
-            $result = $this->callbacks[$callback->value](...$args);
+        if (isset($this->callbacks[$event->value])) {
+            $result = $this->callbacks[$event->value](...$args);
             return $result ?? true;
         }
         return true;
@@ -525,7 +525,7 @@ class Server
      */
     public function onServerStart(?\Closure $function): void
     {
-        $this->on(Callback::SERVER_START, $function);
+        $this->on(Event::SERVER_START, $function);
     }
 
     /**
@@ -535,7 +535,7 @@ class Server
      */
     public function onServerStop(?\Closure $function): void
     {
-        $this->on(Callback::SERVER_STOP, $function);
+        $this->on(Event::SERVER_STOP, $function);
     }
 
     /**
@@ -545,7 +545,7 @@ class Server
      */
     public function onHandshake(?\Closure $function): void
     {
-        $this->on(Callback::HANDSHAKE, $function);
+        $this->on(Event::HANDSHAKE, $function);
     }
 
     /**
@@ -555,7 +555,7 @@ class Server
      */
     public function onClientConnect(?\Closure $function): void
     {
-        $this->on(Callback::CLIENT_CONNECT, $function);
+        $this->on(Event::CLIENT_CONNECT, $function);
     }
 
     /**
@@ -565,7 +565,7 @@ class Server
      */
     public function onClientDisconnect(?\Closure $function): void
     {
-        $this->on(Callback::CLIENT_DISCONNECT, $function);
+        $this->on(Event::CLIENT_DISCONNECT, $function);
     }
 
     /**
@@ -575,6 +575,6 @@ class Server
      */
     public function onMessageReceive(?\Closure $function): void
     {
-        $this->on(Callback::MESSAGE_RECEIVE, $function);
+        $this->on(Event::MESSAGE_RECEIVE, $function);
     }
 }
