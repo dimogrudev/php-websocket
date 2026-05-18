@@ -6,10 +6,10 @@ use WebSocket\Contract\ClientInterface;
 use WebSocket\Contract\RequestInterface;
 use WebSocket\Domain\Message;
 use WebSocket\Domain\Registry\Event;
+use WebSocket\Infrastructure\Http\HandshakeParser;
 use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Infrastructure\Timer;
 use WebSocket\Protocol\FrameParser;
-use WebSocket\Protocol\HandshakeParser;
 
 /**
  * Represents main server class.

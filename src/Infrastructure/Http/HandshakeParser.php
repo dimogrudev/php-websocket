@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Protocol;
+namespace WebSocket\Infrastructure\Http;
 
 use WebSocket\Domain\Request;
 
