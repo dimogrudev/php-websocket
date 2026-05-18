@@ -1,13 +1,13 @@
 <?php
 
-namespace WebSocket\Service;
+namespace WebSocket\Protocol;
 
 use WebSocket\Entity\Request;
 
 /**
  * Represents handshake request parser service.
  */
-class RequestParser
+class HandshakeParser
 {
     const string REGEX_REQUEST      = '/^GET\x20([^\s]+)\x20HTTP\/1\.1\r?\n((?:[^\r\n]+\r?\n)+)\r?\n$/';
     const string REGEX_HEADERS      = '/([a-zA-Z0-9!#$%&\'*+.^_`|~-]+)([\x20\t]*):[\x20\t]*(.*?)[\x20\t]*\r?\n/';

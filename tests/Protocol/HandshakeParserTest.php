@@ -1,13 +1,13 @@
 <?php
 
-namespace WebSocket\Test\Service;
+namespace WebSocket\Test\Protocol;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use WebSocket\Entity\Request;
-use WebSocket\Service\RequestParser;
+use WebSocket\Protocol\HandshakeParser;
 
-class RequestParserTest extends TestCase
+class HandshakeParserTest extends TestCase
 {
     public static function handshakeProvider(): array
     {
@@ -140,7 +140,7 @@ class RequestParserTest extends TestCase
         array $expectedParams,
         array $expectedCookies
     ): void {
-        $parser = new RequestParser;
+        $parser = new HandshakeParser;
         $result = $parser->parse($raw);
 
         if (!$shouldPass) {

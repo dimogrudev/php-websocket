@@ -8,11 +8,11 @@ use WebSocket\Entity\Message;
 use WebSocket\Entity\Request;
 use WebSocket\Exception\ProtocolException;
 use WebSocket\Protocol\FrameParser;
+use WebSocket\Protocol\HandshakeParser;
 use WebSocket\Protocol\MessageBuilder;
 use WebSocket\Protocol\Struct\Frame;
 use WebSocket\Registry\Opcode;
 use WebSocket\Registry\StatusCode;
-use WebSocket\Service\RequestParser;
 
 /**
  * Represents client entity.
@@ -70,7 +70,7 @@ class Client implements ClientInterface, ConnectionInterface
     /////////////////////////////////
 
     /**
-     * @param RequestParser $requestParser Request parser service.
+     * @param HandshakeParser $handshakeParser Handshake request parser service.
      * @param FrameParser $frameParser Frame parser service.
      * @param resource $stream Client stream.
      * @param string $ipAddr Client IP address.
@@ -80,7 +80,7 @@ class Client implements ClientInterface, ConnectionInterface
      * @param int $maxChunkLength Maximum size (in bytes) of each chunk.
      */
     public function __construct(
-        private readonly RequestParser $requestParser,
+        private readonly HandshakeParser $handshakeParser,
         private readonly FrameParser $frameParser,
         public readonly mixed $stream,
         public readonly string $ipAddr,
@@ -266,7 +266,7 @@ class Client implements ClientInterface, ConnectionInterface
                 $dataLength = $pos + $len;
                 $requestData = substr($buffer, 0, $dataLength);
 
-                if ($request = $this->requestParser->parse($requestData)) {
+                if ($request = $this->handshakeParser->parse($requestData)) {
                     $this->discardReadData($dataLength);
                     $this->isRequestReceived = true;
                     return $request;

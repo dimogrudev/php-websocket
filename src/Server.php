@@ -7,9 +7,9 @@ use WebSocket\Contract\RequestInterface;
 use WebSocket\Entity\Message;
 use WebSocket\Entity\Timer;
 use WebSocket\Protocol\FrameParser;
+use WebSocket\Protocol\HandshakeParser;
 use WebSocket\Registry\Callback;
 use WebSocket\Registry\StatusCode;
-use WebSocket\Service\RequestParser;
 
 /**
  * Represents main server class.
@@ -21,8 +21,8 @@ class Server
 
     /////////////////////////////////
 
-    /** @var RequestParser $requestParser Request parser service. */
-    private readonly RequestParser $requestParser;
+    /** @var HandshakeParser $handshakeParser Handshake request parser service. */
+    private readonly HandshakeParser $handshakeParser;
     /** @var FrameParser $frameParser Frame parser service. */
     private readonly FrameParser $frameParser;
 
@@ -74,7 +74,7 @@ class Server
         private readonly int $maxChunkLength = 1024,
         private readonly int $eventLoopTimeout = 50
     ) {
-        $this->requestParser = new RequestParser;
+        $this->handshakeParser = new HandshakeParser;
         $this->frameParser = new FrameParser($maxChunksPerFrame * $maxChunkLength);
 
         $this->setInternalTimers();
@@ -296,7 +296,7 @@ class Server
             }
 
             $this->clients[$streamId] = new Client(
-                $this->requestParser,
+                $this->handshakeParser,
                 $this->frameParser,
                 $incomingStream,
                 $ipAddr,
