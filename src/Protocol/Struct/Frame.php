@@ -2,7 +2,7 @@
 
 namespace WebSocket\Protocol\Struct;
 
-use WebSocket\Exception\ProtocolException;
+use WebSocket\Protocol\Exception\ProtocolException;
 use WebSocket\Protocol\Registry\Opcode;
 
 /**

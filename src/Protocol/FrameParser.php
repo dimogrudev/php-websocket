@@ -3,7 +3,7 @@
 namespace WebSocket\Protocol;
 
 use WebSocket\Contract\ConnectionInterface;
-use WebSocket\Exception\ProtocolException;
+use WebSocket\Protocol\Exception\ProtocolException;
 use WebSocket\Protocol\Registry\Opcode;
 use WebSocket\Protocol\Struct\Frame;
 use WebSocket\Protocol\Struct\FrameHeader;
