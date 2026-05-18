@@ -2,6 +2,7 @@
 
 namespace WebSocket\Protocol;
 
+use WebSocket\Exception\ProtocolException;
 use WebSocket\Registry\Opcode;
 
 /**
@@ -19,7 +20,19 @@ readonly class Frame
         public bool $isFinal,
         public Opcode $opcode,
         public ?string $payload = null
-    ) {}
+    ) {
+        if ($opcode->isControl()) {
+            if (!$isFinal) {
+                throw new ProtocolException("Control frames must not be fragmented", 1002);
+            }
+
+            $frameLength = $payload ? strlen($payload) : 0;
+
+            if ($frameLength > 125) {
+                throw new ProtocolException("Only non-control frames can have extended length", 1002);
+            }
+        }
+    }
 
     /**
      * @return string Returns encoded data ready for sending.
