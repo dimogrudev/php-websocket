@@ -3,8 +3,8 @@
 namespace WebSocket;
 
 use WebSocket\Contract\ClientInterface;
+use WebSocket\Contract\MessageInterface;
 use WebSocket\Contract\RequestInterface;
-use WebSocket\Domain\Message;
 use WebSocket\Domain\Registry\Event;
 use WebSocket\Infrastructure\Connection;
 use WebSocket\Infrastructure\Http\HandshakeParser;
@@ -574,7 +574,7 @@ class Server
 
     /**
      * Registers server callback triggered on message receive.
-     * @param (\Closure(ClientInterface, Message): void)|null $function Callback function.
+     * @param (\Closure(ClientInterface, MessageInterface): void)|null $function Callback function.
      * @return void
      */
     public function onMessageReceive(?\Closure $function): void

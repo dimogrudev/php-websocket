@@ -2,10 +2,12 @@
 
 namespace WebSocket\Domain;
 
+use WebSocket\Contract\MessageInterface;
+
 /**
  * Represents data message DTO.
  */
-class Message
+class Message implements MessageInterface
 {
     /** @var int $length Message length. */
     public int $length {
