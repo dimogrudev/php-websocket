@@ -2,7 +2,6 @@
 
 namespace WebSocket\Contract;
 
-use WebSocket\Domain\Message;
 use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Infrastructure\Http\Registry\Redirection;
 
