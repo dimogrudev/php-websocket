@@ -310,10 +310,22 @@ class Client implements ClientInterface
 
     /**
      * Sends data message to the client.
-     * @param Message $message Data message.
+     * @param string $payload Message content to be transmitted.
+     * @param bool $isBinary Whether message content is binary.
      * @return void
      */
-    public function sendMessage(Message $message): void
+    public function send(string $payload, bool $isBinary = false): void
+    {
+        $message = new Message($payload, $isBinary);
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Encodes and transmits Message object through underlying connection.
+     * @param Message $message Message object.
+     * @return void
+     */
+    private function sendMessage(Message $message): void
     {
         $opcode = $message->isBinary ? Opcode::BINARY : Opcode::TEXT;
         $frame = new Frame(true, $opcode, $message->payload);
