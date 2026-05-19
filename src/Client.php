@@ -3,9 +3,9 @@
 namespace WebSocket;
 
 use WebSocket\Contract\ClientInterface;
-use WebSocket\Contract\ConnectionInterface;
 use WebSocket\Domain\Message;
 use WebSocket\Domain\Request;
+use WebSocket\Infrastructure\Connection;
 use WebSocket\Infrastructure\Http\HandshakeParser;
 use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Infrastructure\Http\Registry\Redirection;
@@ -18,7 +18,7 @@ use WebSocket\Protocol\Struct\Frame;
 /**
  * Represents client entity.
  */
-class Client implements ClientInterface, ConnectionInterface
+class Client implements ClientInterface
 {
     const string WEBSOCKET_GUID             = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -33,7 +33,11 @@ class Client implements ClientInterface, ConnectionInterface
 
     /** @var int $id Client stream ID. */
     public int $id {
-        get => get_resource_id($this->stream);
+        get => get_resource_id($this->connection->stream);
+    }
+    /** @var resource $stream Client stream. */
+    public mixed $stream {
+        get => $this->connection->stream;
     }
 
     /** @var float $connectedAt Connection timestamp. */
@@ -44,7 +48,9 @@ class Client implements ClientInterface, ConnectionInterface
     private float $closedAt;
 
     /** @var bool $isConnected Whether connection is established. */
-    private(set) bool $isConnected          = true;
+    public bool $isConnected {
+        get => $this->connection->isEstablished;
+    }
     /** @var bool $isHandshakePerformed Whether handshake is performed. */
     private(set) bool $isHandshakePerformed = false;
 
@@ -58,14 +64,9 @@ class Client implements ClientInterface, ConnectionInterface
     /** @var Frame $closeFrame Close frame sent to client. */
     private Frame $closeFrame;
 
-    /** @var string $readBuffer Read buffer. */
-    private string $readBuffer              = '';
-    /** @var string $writeBuffer Write buffer. */
-    private string $writeBuffer             = '';
-
     /** @var bool $hasDataToWrite Client has data in write buffer. */
     public bool $hasDataToWrite {
-        get => $this->writeBuffer !== '';
+        get => $this->connection->hasDataToWrite;
     }
 
     /////////////////////////////////
@@ -73,39 +74,28 @@ class Client implements ClientInterface, ConnectionInterface
     /**
      * @param HandshakeParser $handshakeParser Handshake request parser service.
      * @param FrameParser $frameParser Frame parser service.
-     * @param resource $stream Client stream.
+     * @param Connection $connection Connection stream wrapper.
      * @param string $ipAddr Client IP address.
-     * @param bool $isSecure Whether connection is secure.
      * @param int $maxFrameBufferSize Maximum size of fragmentation buffer.
-     * @param int $maxChunksPerFrame Maximum amount of data chunks per frame.
-     * @param int $maxChunkLength Maximum size (in bytes) of each chunk.
      */
     public function __construct(
         private readonly HandshakeParser $handshakeParser,
         private readonly FrameParser $frameParser,
-        public readonly mixed $stream,
+        private readonly Connection $connection,
         public readonly string $ipAddr,
-        private readonly bool $isSecure,
-        private readonly int $maxFrameBufferSize = 8,
-        private readonly int $maxChunksPerFrame = 8,
-        private readonly int $maxChunkLength = 1024
+        int $maxFrameBufferSize = 8
     ) {
         $this->messageBuilder = new MessageBuilder($maxFrameBufferSize);
         $this->connectedAt = microtime(true);
     }
 
     /**
-     * Disconnects client.
+     * Disconnects client immediately.
      * @return void
      */
     public function disconnect(): void
     {
-        if ($this->isConnected) {
-            $this->isConnected = false;
-
-            @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
-            @fclose($this->stream);
-        }
+        $this->connection->close();
     }
 
     /**
@@ -114,44 +104,7 @@ class Client implements ClientInterface, ConnectionInterface
      */
     public function pull(): bool
     {
-        if ($this->isConnected && !isset($this->closeFrame)) {
-            if ($this->isSecure) {
-                while (openssl_error_string() !== false);
-            }
-
-            $data = @fread($this->stream, $this->maxChunkLength);
-
-            if ($data === false) {
-                if ($this->isSecure) {
-                    $sslError = openssl_error_string();
-
-                    if ($sslError !== false && preg_match('/WANT_(READ|WRITE)/i', $sslError)) {
-                        return false;
-                    }
-                }
-
-                $this->disconnect();
-                return false;
-            } elseif ($data === '') {
-                if (!$this->isSecure || feof($this->stream)) {
-                    $this->disconnect();
-                    return false;
-                }
-
-                return false;
-            }
-
-            $this->readBuffer .= $data;
-
-            if ($this->getReadBufferSize() > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
-                $this->disconnect();
-                return false;
-            }
-
-            return true;
-        }
-
-        return false;
+        return $this->connection->pull();
     }
 
     /**
@@ -160,87 +113,7 @@ class Client implements ClientInterface, ConnectionInterface
      */
     public function push(): void
     {
-        if ($this->isConnected && $this->hasDataToWrite) {
-            if ($this->isSecure) {
-                while (openssl_error_string() !== false);
-            }
-
-            $chunk = $this->isSecure
-                ? substr($this->writeBuffer, 0, 8192)
-                : $this->writeBuffer;
-
-            $written = @fwrite($this->stream, $chunk);
-
-            if ($written === false) {
-                if ($this->isSecure) {
-                    $sslError = openssl_error_string();
-
-                    if ($sslError !== false && preg_match('/WANT_(READ|WRITE)|WRITE_PENDING/i', $sslError)) {
-                        return;
-                    }
-                }
-
-                $this->disconnect();
-                return;
-            }
-
-            if ($written > 0) {
-                $this->writeBuffer = substr($this->writeBuffer, $written);
-
-                if (isset($this->closeFrame) && !$this->hasDataToWrite) {
-                    $this->disconnect();
-                }
-            }
-        }
-    }
-
-    /**
-     * Extracts raw data from read buffer.
-     * @param int|null $length Maximum length of returned string.
-     * @param int $offset Data offset in the buffer.
-     * @return string Returns raw data string.
-     */
-    public function readRaw(?int $length = null, int $offset = 0): string
-    {
-        return substr($this->readBuffer, $offset, $length);
-    }
-
-    /**
-     * Gets total number of bytes currently stored in read buffer.
-     * @return int Returns buffer size in bytes.
-     */
-    public function getReadBufferSize(): int
-    {
-        return strlen($this->readBuffer);
-    }
-
-    /**
-     * Discards processed data from read buffer.
-     * @param int $length Length of raw data to be removed.
-     * @return void
-     */
-    public function discardReadData(int $length): void
-    {
-        $this->readBuffer = substr($this->readBuffer, $length, null);
-    }
-
-    /**
-     * Places raw data into write buffer for further sending.
-     * @param string $data Raw data string.
-     * @return void
-     */
-    public function sendRaw(string $data): void
-    {
-        $this->writeBuffer .= $data;
-    }
-
-    /**
-     * Gets total number of bytes currently queued in write buffer.
-     * @return int Returns buffer size in bytes.
-     */
-    public function getWriteBufferSize(): int
-    {
-        return strlen($this->writeBuffer);
+        $this->connection->push();
     }
 
     /**
@@ -250,7 +123,7 @@ class Client implements ClientInterface, ConnectionInterface
     public function receiveRequest(): ?Request
     {
         if (!$this->isRequestReceived) {
-            $buffer = $this->readRaw();
+            $buffer = $this->connection->readRaw();
 
             $posCRLF = strpos($buffer, "\r\n\r\n");
             $posLF = strpos($buffer, "\n\n");
@@ -268,12 +141,11 @@ class Client implements ClientInterface, ConnectionInterface
                 $requestData = substr($buffer, 0, $dataLength);
 
                 if ($request = $this->handshakeParser->parse($requestData)) {
-                    $this->discardReadData($dataLength);
+                    $this->connection->discardReadData($dataLength);
                     $this->isRequestReceived = true;
                     return $request;
                 } else {
                     $this->error(ClientError::BAD_REQUEST);
-                    $this->disconnect();
                 }
             }
         }
@@ -308,7 +180,7 @@ class Client implements ClientInterface, ConnectionInterface
                 "Connection: Upgrade\r\n" .
                 "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
 
-            $this->sendRaw($upgrade);
+            $this->connection->sendRaw($upgrade);
             return $this->isHandshakePerformed = true;
         }
 
@@ -324,7 +196,8 @@ class Client implements ClientInterface, ConnectionInterface
         if (!$this->isHandshakePerformed) {
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Location: $location\r\n\r\n";
-            $this->sendRaw($header);
+            $this->connection->sendRaw($header);
+            $this->connection->finish();
         }
     }
 
@@ -339,7 +212,8 @@ class Client implements ClientInterface, ConnectionInterface
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Date: $date\r\n\r\n";
 
-            $this->sendRaw($header);
+            $this->connection->sendRaw($header);
+            $this->connection->finish();
         }
     }
 
@@ -381,7 +255,7 @@ class Client implements ClientInterface, ConnectionInterface
     public function receiveMessage(): ?Message
     {
         try {
-            while ($frame = $this->frameParser->parse($this)) {
+            while ($frame = $this->frameParser->parse($this->connection)) {
                 if ($frame->opcode->isControl()) {
                     if ($this->handleControlFrame($frame)) {
                         continue;
@@ -409,16 +283,17 @@ class Client implements ClientInterface, ConnectionInterface
     {
         if ($frame->opcode === Opcode::CLOSE) {
             $this->closedAt = microtime(true);
-
             $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
-            $this->sendRaw(
+
+            $this->connection->sendRaw(
                 $this->closeFrame->encode()
             );
+            $this->connection->finish();
 
             return false;
         } elseif ($frame->opcode === Opcode::PING) {
             $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
-            $this->sendRaw(
+            $this->connection->sendRaw(
                 $pongFrame->encode()
             );
         } elseif ($frame->opcode === Opcode::PONG) {
@@ -443,7 +318,7 @@ class Client implements ClientInterface, ConnectionInterface
         $opcode = $message->isBinary ? Opcode::BINARY : Opcode::TEXT;
         $frame = new Frame(true, $opcode, $message->payload);
 
-        $this->sendRaw(
+        $this->connection->sendRaw(
             $frame->encode()
         );
     }
@@ -457,7 +332,7 @@ class Client implements ClientInterface, ConnectionInterface
         $this->pingedAt = microtime(true);
 
         $this->pingFrame = new Frame(true, Opcode::PING, random_bytes(16));
-        $this->sendRaw(
+        $this->connection->sendRaw(
             $this->pingFrame->encode()
         );
     }

@@ -6,6 +6,7 @@ use WebSocket\Contract\ClientInterface;
 use WebSocket\Contract\RequestInterface;
 use WebSocket\Domain\Message;
 use WebSocket\Domain\Registry\Event;
+use WebSocket\Infrastructure\Connection;
 use WebSocket\Infrastructure\Http\HandshakeParser;
 use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Infrastructure\Timer;
@@ -295,15 +296,19 @@ class Server
                 return false;
             }
 
+            $connection = new Connection(
+                $incomingStream,
+                $this->sslContext !== null,
+                $this->maxChunksPerFrame,
+                $this->maxChunkLength
+            );
+
             $this->clients[$streamId] = new Client(
                 $this->handshakeParser,
                 $this->frameParser,
-                $incomingStream,
+                $connection,
                 $ipAddr,
-                $this->sslContext !== null,
-                $this->maxFrameBufferSize,
-                $this->maxChunksPerFrame,
-                $this->maxChunkLength
+                $this->maxFrameBufferSize
             );
             return true;
         }
@@ -332,7 +337,6 @@ class Server
                     }
                 } else {
                     $client->error(ClientError::FORBIDDEN);
-                    $client->disconnect();
                 }
             }
         } else {

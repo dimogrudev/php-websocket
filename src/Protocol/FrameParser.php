@@ -2,7 +2,7 @@
 
 namespace WebSocket\Protocol;
 
-use WebSocket\Contract\ConnectionInterface;
+use WebSocket\Infrastructure\Connection;
 use WebSocket\Protocol\Exception\ProtocolException;
 use WebSocket\Protocol\Registry\Opcode;
 use WebSocket\Protocol\Struct\Frame;
@@ -23,14 +23,14 @@ class FrameParser
 
     /**
      * Attempts to parse single frame from connection read buffer.
-     * @param ConnectionInterface $client Connection stream wrapper holding read buffer.
+     * @param Connection $connection Connection stream wrapper.
      * @return Frame|null Returns parsed frame instance or **NULL** if buffer lacks bytes for complete frame.
      * @throws ProtocolException In case frame format violates protocol.
      * @see https://datatracker.ietf.org/doc/html/rfc6455#section-6.2
      */
-    public function parse(ConnectionInterface $client): ?Frame
+    public function parse(Connection $connection): ?Frame
     {
-        $header = $this->parseHeader($client);
+        $header = $this->parseHeader($connection);
         if ($header === null) {
             return null;
         }
@@ -38,45 +38,45 @@ class FrameParser
         $maskLength = $header->isMasked ? 4 : 0;
         $totalFrameLength = $header->headerLength + $maskLength + $header->dataLength;
 
-        if ($client->getReadBufferSize() < $totalFrameLength) {
+        if ($connection->getReadBufferSize() < $totalFrameLength) {
             return null;
         }
 
         $maskingKey = null;
         if ($header->isMasked) {
-            $maskingKey = $client->readRaw($maskLength, $header->headerLength);
+            $maskingKey = $connection->readRaw($maskLength, $header->headerLength);
         }
 
         $payload = null;
         if ($header->dataLength > 0) {
             $payloadOffset = $header->headerLength + $maskLength;
-            $payload = $client->readRaw($header->dataLength, $payloadOffset);
+            $payload = $connection->readRaw($header->dataLength, $payloadOffset);
 
             if ($maskingKey !== null) {
                 $payload = $this->unmask($payload, $maskingKey);
             }
         }
 
-        $client->discardReadData($totalFrameLength);
+        $connection->discardReadData($totalFrameLength);
         return new Frame($header->isFinal, $header->opcode, $payload);
     }
 
     /**
      * Parses frame header by reading minimal required bytes.
-     * @param ConnectionInterface $client Connection stream wrapper holding read buffer.
+     * @param Connection $connection Connection stream wrapper.
      * @return FrameHeader|null Returns parsed frame header instance or **NULL** if buffer lacks bytes for header metadata.
      * @throws ProtocolException In case header validation rules are violated.
      */
-    private function parseHeader(ConnectionInterface $client): ?FrameHeader
+    private function parseHeader(Connection $connection): ?FrameHeader
     {
         $headerLength = 2;
 
-        $bufferSize = $client->getReadBufferSize();
+        $bufferSize = $connection->getReadBufferSize();
         if ($bufferSize < $headerLength) {
             return null;
         }
 
-        $header = $client->readRaw($headerLength);
+        $header = $connection->readRaw($headerLength);
 
         $bytes = unpack('C2', $header);
         if (!$bytes) {
@@ -120,7 +120,7 @@ class FrameParser
                 }
 
                 // Extended payload length (64 bits)
-                $extendedData = $client->readRaw($extendedDataLength, $headerLength);
+                $extendedData = $connection->readRaw($extendedDataLength, $headerLength);
                 $headerLength += $extendedDataLength;
 
                 $unpacked = unpack('J', $extendedData);
@@ -139,7 +139,7 @@ class FrameParser
                 }
 
                 // Extended payload length (16 bits)
-                $extendedData = $client->readRaw($extendedDataLength, $headerLength);
+                $extendedData = $connection->readRaw($extendedDataLength, $headerLength);
                 $headerLength += $extendedDataLength;
 
                 $unpacked = unpack('n', $extendedData);
