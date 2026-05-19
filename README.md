@@ -36,7 +36,7 @@ composer require dimogrudev/php-websocket
 use WebSocket\Server;
 use WebSocket\Contract\ClientInterface;
 use WebSocket\Contract\RequestInterface;
-use WebSocket\Domain\Message;
+use WebSocket\Contract\MessageInterface;
 
 require 'vendor/autoload.php';
 
@@ -46,12 +46,18 @@ $server = new Server('0.0.0.0', 8443);
 // Enable encryption and provide certificate files
 $server->encryption(true, 'path/to/cert.crt', 'path/to/cert.key');
 
-// Handle incoming messages
-$server->onMessageReceive(function (ClientInterface $client, Message $message): void {
+// Handle incoming messages and respond to clients
+$server->onMessageReceive(function (ClientInterface $client, MessageInterface $message): void {
     if ($message->isBinary) {
         echo "{$client->ipAddr} (#{$client->id}) sends binary message ({$message->length} bytes)\n";
+
+        // Echo the binary message back to the client
+        $client->send($message->payload, isBinary: true);
     } else {
         echo "{$client->ipAddr} (#{$client->id}) sends `{$message->payload}`\n";
+
+        // Reply with a text message
+        $client->send("Server received your message: {$message->payload}");
     }
 });
 
@@ -59,7 +65,7 @@ $server->start();
 ```
 
 > [!TIP]
-> Modern browsers block non-secure WebSocket connections (`ws://`) on secure websites (`https://`). Always use a valid SSL certificate (e.g. **Let's Encrypt**) for production.
+> Modern browsers block non-secure WebSocket connections (`ws://`) on secure websites (`https://`). Always use a valid SSL/TLS certificate (e.g. **Let's Encrypt**) for production.
 
 ### Timers
 
@@ -83,7 +89,7 @@ $server->clearTimer($timerId);
 | `onHandshake` | `(ClientInterface, RequestInterface): bool` | Triggered when a handshake request is received. Return `true` to accept the connection. |
 | `onClientConnect` | `(ClientInterface): void` | Triggered after the handshake is accepted and the connection is fully established. |
 | `onClientDisconnect` | `(ClientInterface): void` | Triggered when the connection is closed. |
-| `onMessageReceive` | `(ClientInterface, Message): void` | Triggered when a complete data message is received. |
+| `onMessageReceive` | `(ClientInterface, MessageInterface): void` | Triggered when a complete data message is received. |
 
 ### Connection Security
 
