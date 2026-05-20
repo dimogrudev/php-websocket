@@ -3,6 +3,7 @@
 namespace WebSocket\Protocol\Struct;
 
 use WebSocket\Protocol\Exception\ProtocolException;
+use WebSocket\Protocol\Registry\CloseCode;
 use WebSocket\Protocol\Registry\Opcode;
 
 /**
@@ -23,13 +24,13 @@ readonly class Frame
     ) {
         if ($opcode->isControl()) {
             if (!$isFinal) {
-                throw new ProtocolException("Control frames must not be fragmented", 1002);
+                throw new ProtocolException("Control frames must not be fragmented", CloseCode::PROTOCOL_ERROR->value);
             }
 
             $frameLength = $payload ? strlen($payload) : 0;
 
             if ($frameLength > 125) {
-                throw new ProtocolException("Only non-control frames can have extended length", 1002);
+                throw new ProtocolException("Only non-control frames can have extended length", CloseCode::PROTOCOL_ERROR->value);
             }
         }
     }

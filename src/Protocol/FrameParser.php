@@ -4,6 +4,7 @@ namespace WebSocket\Protocol;
 
 use WebSocket\Infrastructure\Connection;
 use WebSocket\Protocol\Exception\ProtocolException;
+use WebSocket\Protocol\Registry\CloseCode;
 use WebSocket\Protocol\Registry\Opcode;
 use WebSocket\Protocol\Struct\Frame;
 use WebSocket\Protocol\Struct\FrameHeader;
@@ -80,7 +81,7 @@ class FrameParser
 
         $bytes = unpack('C2', $header);
         if (!$bytes) {
-            throw new ProtocolException("Failed to unpack frame header metadata", 1002);
+            throw new ProtocolException("Failed to unpack frame header metadata", CloseCode::PROTOCOL_ERROR->value);
         }
 
         // FIN (1 bit)
@@ -90,13 +91,13 @@ class FrameParser
             // Opcode (4 bits)
             $opcode = Opcode::from($bytes[1] & 0b00001111);
         } catch (\Error) {
-            throw new ProtocolException("Invalid opcode", 1002);
+            throw new ProtocolException("Invalid opcode", CloseCode::PROTOCOL_ERROR->value);
         }
 
         // Mask (1 bit)
         $isMasked = (bool)($bytes[2] & 0b10000000);
         if (!$isMasked) {
-            throw new ProtocolException("Client frames must be masked", 1002);
+            throw new ProtocolException("Client frames must be masked", CloseCode::PROTOCOL_ERROR->value);
         }
 
         // Payload length (7 bits)
@@ -105,12 +106,12 @@ class FrameParser
         $isControl = $opcode->isControl();
 
         if (!$isFinal && $isControl) {
-            throw new ProtocolException("Control frames must not be fragmented", 1002);
+            throw new ProtocolException("Control frames must not be fragmented", CloseCode::PROTOCOL_ERROR->value);
         }
 
         if ($dataLength > 125) {
             if ($isControl) {
-                throw new ProtocolException("Only non-control frames can have extended length", 1002);
+                throw new ProtocolException("Only non-control frames can have extended length", CloseCode::PROTOCOL_ERROR->value);
             }
 
             if ($dataLength === 127) {
@@ -125,12 +126,12 @@ class FrameParser
 
                 $unpacked = unpack('J', $extendedData);
                 if (!$unpacked) {
-                    throw new ProtocolException("Failed to unpack 64-bit extended payload length", 1002);
+                    throw new ProtocolException("Failed to unpack 64-bit extended payload length", CloseCode::PROTOCOL_ERROR->value);
                 }
 
                 $dataLength = (int)$unpacked[1];
                 if ($dataLength < 0 || $dataLength > $this->maxFrameLength) {
-                    throw new ProtocolException("Payload length exceeds maximum allowed limit", 1009);
+                    throw new ProtocolException("Payload length exceeds maximum allowed limit", CloseCode::MESSAGE_TOO_BIG->value);
                 }
             } elseif ($dataLength === 126) {
                 $extendedDataLength = 2;
@@ -144,7 +145,7 @@ class FrameParser
 
                 $unpacked = unpack('n', $extendedData);
                 if (!$unpacked) {
-                    throw new ProtocolException("Failed to unpack 16-bit extended payload length", 1002);
+                    throw new ProtocolException("Failed to unpack 16-bit extended payload length", CloseCode::PROTOCOL_ERROR->value);
                 }
 
                 $dataLength = (int)$unpacked[1];
