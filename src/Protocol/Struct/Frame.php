@@ -52,19 +52,19 @@ readonly class Frame
         // FIN (1 bit) + RSV1, RSV2, RSV3 (1 bit each) + Opcode (4 bits)
         $header = pack('C', ($this->isFinal ? 0b10000000 : 0b00000000) | $this->opcode->value);
         // Payload length
-        $frameLength = $this->payload ? strlen($this->payload) : 0;
+        $payloadLength = $this->payload ? strlen($this->payload) : 0;
 
-        if ($frameLength > 65535) {
+        if ($payloadLength > 65535) {
             // Mask (1 bit) + Payload length (7 bits) + Extended (64 bits)
-            $header .= pack('C', 0b00000000 | 127) . pack('J', $frameLength);
-        } elseif ($frameLength > 125) {
+            $header .= pack('C', 0b00000000 | 127) . pack('J', $payloadLength);
+        } elseif ($payloadLength > 125) {
             // Mask (1 bit) + Payload length (7 bits) + Extended (16 bits)
-            $header .= pack('C', 0b00000000 | 126) . pack('n', $frameLength);
+            $header .= pack('C', 0b00000000 | 126) . pack('n', $payloadLength);
         } else {
             // Mask (1 bit) + Payload length (7 bits)
-            $header .= pack('C', 0b00000000 | $frameLength);
+            $header .= pack('C', 0b00000000 | $payloadLength);
         }
 
-        return $header . $this->payload;
+        return $header . ($this->payload ?? '');
     }
 }
