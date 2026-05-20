@@ -315,14 +315,25 @@ class Client implements ClientInterface
                 return false;
             }
 
-            $this->closedAt = microtime(true);
-            $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
+            $closeCode = CloseCode::NORMAL_CLOSURE;
+            $closeReason = CloseCode::NORMAL_CLOSURE->getDescription();
 
-            $this->connection->sendRaw(
-                $this->closeFrame->encode()
-            );
-            $this->connection->finish(forceClose: true);
+            if (strlen($frame->payload) >= 2) {
+                $unpacked = unpack('n', substr($frame->payload, 0, 2));
+                if (!$unpacked) {
+                    $this->connection->close();
+                    return false;
+                }
 
+                $closeCode = CloseCode::tryFrom((int)$unpacked[1]) ?? CloseCode::PROTOCOL_ERROR;
+                $closeReason = substr($frame->payload, 2);
+            }
+
+            try {
+                $this->disconnect($closeCode, $closeReason, forceClose: true);
+            } catch (\InvalidArgumentException) {
+                $this->connection->close();
+            }
             return false;
         } elseif ($frame->opcode === Opcode::PING) {
             $pongFrame = new Frame(true, Opcode::PONG, $frame->payload);
