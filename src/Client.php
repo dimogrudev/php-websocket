@@ -197,7 +197,7 @@ class Client implements ClientInterface
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Location: $location\r\n\r\n";
             $this->connection->sendRaw($header);
-            $this->connection->finish();
+            $this->connection->finish(forceClose: true);
         }
     }
 
@@ -213,7 +213,7 @@ class Client implements ClientInterface
                 "Date: $date\r\n\r\n";
 
             $this->connection->sendRaw($header);
-            $this->connection->finish();
+            $this->connection->finish(forceClose: true);
         }
     }
 
@@ -288,7 +288,7 @@ class Client implements ClientInterface
             $this->connection->sendRaw(
                 $this->closeFrame->encode()
             );
-            $this->connection->finish();
+            $this->connection->finish(forceClose: true);
 
             return false;
         } elseif ($frame->opcode === Opcode::PING) {

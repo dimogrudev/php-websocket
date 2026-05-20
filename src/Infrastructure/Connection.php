@@ -11,6 +11,11 @@ class Connection
     private(set) bool $isEstablished        = true;
     /** @var bool $isDraining Whether connection is draining buffers.  */
     private(set) bool $isDraining           = false;
+    /** @var bool $isWriteClosed Whether outbound stream is shut down. */
+    private(set) bool $isWriteClosed        = false;
+
+    /** @var bool $forceCloseAfterDrain Whether to completely close connection after draining buffers. */
+    private bool $forceCloseAfterDrain      = false;
 
     /** @var string $readBuffer Read buffer. */
     private string $readBuffer              = '';
@@ -43,6 +48,7 @@ class Connection
     {
         if ($this->isEstablished) {
             $this->isEstablished = false;
+            $this->isWriteClosed = true;
 
             @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
             @fclose($this->stream);
@@ -50,12 +56,47 @@ class Connection
     }
 
     /**
-     * Drains buffers then closes connection.
+     * Closes outbound stream.
      * @return void
      */
-    public function finish(): void
+    private function enterHalfClose(): void
     {
+        if (!$this->isWriteClosed && $this->isEstablished) {
+            $this->isWriteClosed = true;
+            @stream_socket_shutdown($this->stream, STREAM_SHUT_WR);
+        }
+    }
+
+    /**
+     * Drains write buffer then closes connection or shifts to half-close state.
+     * @param bool $forceClose Whether to completely close connection after drain.
+     * @return void
+     */
+    public function finish(bool $forceClose = false): void
+    {
+        if ($this->isWriteClosed) {
+            return;
+        }
+
         $this->isDraining = true;
+        $this->forceCloseAfterDrain = $forceClose;
+
+        if (!$this->hasDataToWrite) {
+            $this->applyCloseStrategy();
+        }
+    }
+
+    /**
+     * Finalizes connection shutdown based on close strategy.
+     * @return void
+     */
+    private function applyCloseStrategy(): void
+    {
+        if ($this->forceCloseAfterDrain) {
+            $this->close();
+        } else {
+            $this->enterHalfClose();
+        }
     }
 
     /**
@@ -93,10 +134,6 @@ class Connection
             return false;
         }
 
-        if ($this->isDraining) {
-            return false;
-        }
-
         $this->readBuffer .= $data;
 
         if ($this->getReadBufferSize() > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
@@ -113,7 +150,7 @@ class Connection
      */
     public function push(): void
     {
-        if (!$this->isEstablished || !$this->hasDataToWrite) {
+        if (!$this->isEstablished || $this->isWriteClosed || !$this->hasDataToWrite) {
             return;
         }
         if ($this->isSecure) {
@@ -143,7 +180,7 @@ class Connection
             $this->writeBuffer = substr($this->writeBuffer, $written);
 
             if ($this->isDraining && !$this->hasDataToWrite) {
-                $this->close();
+                $this->applyCloseStrategy();
             }
         }
     }
@@ -185,7 +222,7 @@ class Connection
      */
     public function sendRaw(string $data): void
     {
-        if (!$this->isDraining) {
+        if (!$this->isDraining && !$this->isWriteClosed) {
             $this->writeBuffer .= $data;
         }
     }
