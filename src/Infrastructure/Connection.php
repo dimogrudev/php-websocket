@@ -185,7 +185,9 @@ class Connection
      */
     public function sendRaw(string $data): void
     {
-        $this->writeBuffer .= $data;
+        if (!$this->isDraining) {
+            $this->writeBuffer .= $data;
+        }
     }
 
     /**
