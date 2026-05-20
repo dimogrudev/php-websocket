@@ -4,6 +4,7 @@ namespace WebSocket\Contract;
 
 use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Infrastructure\Http\Registry\Redirection;
+use WebSocket\Protocol\Registry\CloseCode;
 
 /**
  * Represents client interface for public API.
@@ -19,9 +20,12 @@ interface ClientInterface
 
     /**
      * Disconnects client.
+     * @param CloseCode|null $code Status code to be send before disconnecting or **NULL** to close connection immediately.
+     * @param string|null $reason Human-readable explanation for closure.
+     * @param bool $forceClose Whether to completely close connection after status code is sent.
      * @return void
      */
-    public function disconnect(): void;
+    public function disconnect(?CloseCode $code = null, ?string $reason = null, bool $forceClose = false): void;
     /**
      * Sends redirection header to the client.
      * @return void

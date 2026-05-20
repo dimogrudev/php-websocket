@@ -12,6 +12,7 @@ use WebSocket\Infrastructure\Http\Registry\Redirection;
 use WebSocket\Protocol\Exception\ProtocolException;
 use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\MessageBuilder;
+use WebSocket\Protocol\Registry\CloseCode;
 use WebSocket\Protocol\Registry\Opcode;
 use WebSocket\Protocol\Struct\Frame;
 
@@ -66,7 +67,7 @@ class Client implements ClientInterface
 
     /** @var bool $hasDataToWrite Client has data in write buffer. */
     public bool $hasDataToWrite {
-        get => $this->connection->hasDataToWrite;
+        get => $this->connection->hasDataToWrite && !$this->connection->isWriteClosed;
     }
 
     /////////////////////////////////
@@ -90,12 +91,40 @@ class Client implements ClientInterface
     }
 
     /**
-     * Disconnects client immediately.
+     * Disconnects client.
+     * @param CloseCode|null $code Status code to be send before disconnecting or **NULL** to close connection immediately.
+     * @param string|null $reason Human-readable explanation for closure.
+     * @param bool $forceClose Whether to completely close connection after status code is sent.
      * @return void
      */
-    public function disconnect(): void
+    public function disconnect(?CloseCode $code = null, ?string $reason = null, bool $forceClose = false): void
     {
-        $this->connection->close();
+        if (isset($this->closeFrame)) {
+            return;
+        }
+        if (!$this->isHandshakePerformed || $code === null) {
+            $this->connection->close();
+            return;
+        }
+
+        $reason = $reason ?? $code->getDescription();
+
+        if (!mb_check_encoding($reason, 'UTF-8')) {
+            throw new \InvalidArgumentException("Close reason must be valid UTF-8 string.");
+        }
+        if (strlen($reason) > 123) {
+            $reason = mb_strcut($reason, 0, 123, 'UTF-8');
+        }
+
+        $closePayload = pack('n', $code->value) . $reason;
+
+        $this->closedAt = microtime(true);
+        $this->closeFrame = new Frame(true, Opcode::CLOSE, $closePayload);
+
+        $this->connection->sendRaw(
+            $this->closeFrame->encode()
+        );
+        $this->connection->finish($forceClose);
     }
 
     /**
@@ -167,9 +196,9 @@ class Client implements ClientInterface
     /**
      * Tries to perform handshake with the client.
      * @param string $secKey Security key.
-     * @return bool Returns **TRUE** on success or **FALSE** otherwise.
+     * @return void
      */
-    public function performHandshake(string $secKey): bool
+    public function performHandshake(string $secKey): void
     {
         if (!$this->isHandshakePerformed) {
             $secAccept = base64_encode(
@@ -181,10 +210,8 @@ class Client implements ClientInterface
                 "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
 
             $this->connection->sendRaw($upgrade);
-            return $this->isHandshakePerformed = true;
+            $this->isHandshakePerformed = true;
         }
-
-        return false;
     }
 
     /**
@@ -228,19 +255,19 @@ class Client implements ClientInterface
 
         if (isset($this->pingFrame)) {
             if (($microtime - $this->pingedAt) * 1000 > self::TIMEOUT_PING_RESPONSE) {
-                $this->disconnect();
+                $this->connection->close();
                 return false;
             }
         }
         if (isset($this->closeFrame)) {
             if (($microtime - $this->closedAt) * 1000 > self::TIMEOUT_CLOSE) {
-                $this->disconnect();
+                $this->connection->close();
                 return false;
             }
         }
         if (!$this->isHandshakePerformed) {
             if (($microtime - $this->connectedAt) * 1000 > self::TIMEOUT_HANDSHAKE) {
-                $this->disconnect();
+                $this->connection->close();
                 return false;
             }
         }
@@ -249,10 +276,10 @@ class Client implements ClientInterface
     }
 
     /**
-     * Receives data message from the client.
-     * @return Message|null Returns data message on success or **NULL** otherwise.
+     * Handles incoming data.
+     * @return Message|null Returns data message instance or **NULL** if buffer lacks data frames for complete message.
      */
-    public function receiveMessage(): ?Message
+    public function handleIncomingData(): ?Message
     {
         try {
             while ($frame = $this->frameParser->parse($this->connection)) {
@@ -267,8 +294,9 @@ class Client implements ClientInterface
                     return $message;
                 }
             }
-        } catch (ProtocolException) {
-            $this->disconnect();
+        } catch (ProtocolException $e) {
+            $closeCode = CloseCode::tryFrom($e->getCode()) ?? CloseCode::PROTOCOL_ERROR;
+            $this->disconnect($closeCode, $e->getMessage(), forceClose: true);
         }
 
         return null;
@@ -282,6 +310,11 @@ class Client implements ClientInterface
     private function handleControlFrame(Frame $frame): bool
     {
         if ($frame->opcode === Opcode::CLOSE) {
+            if (isset($this->closeFrame)) {
+                $this->connection->close();
+                return false;
+            }
+
             $this->closedAt = microtime(true);
             $this->closeFrame = new Frame(true, Opcode::CLOSE, $frame->payload);
 

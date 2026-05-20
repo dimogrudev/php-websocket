@@ -332,15 +332,18 @@ class Server
                     $this->triggerCallback(Event::CLIENT_CONNECT, [$client]);
 
                     $secKey = $request->header('sec-websocket-key');
-                    if ($secKey === null || !$client->performHandshake($secKey)) {
-                        $client->disconnect();
+                    if ($secKey === null) {
+                        $client->error(ClientError::BAD_REQUEST);
+                        return;
                     }
+
+                    $client->performHandshake($secKey);
                 } else {
                     $client->error(ClientError::FORBIDDEN);
                 }
             }
         } else {
-            while ($message = $client->receiveMessage()) {
+            while ($message = $client->handleIncomingData()) {
                 $this->triggerCallback(Event::MESSAGE_RECEIVE, [$client, $message]);
             }
         }

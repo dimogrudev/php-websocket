@@ -134,6 +134,10 @@ class Connection
             return false;
         }
 
+        if ($this->isDraining && $this->forceCloseAfterDrain) {
+            return false;
+        }
+
         $this->readBuffer .= $data;
 
         if ($this->getReadBufferSize() > ($this->maxChunksPerFrame * $this->maxChunkLength)) {
