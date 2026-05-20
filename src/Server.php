@@ -11,6 +11,7 @@ use WebSocket\Infrastructure\Http\HandshakeParser;
 use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Infrastructure\Timer;
 use WebSocket\Protocol\FrameParser;
+use WebSocket\Protocol\Registry\CloseCode;
 
 /**
  * Represents main server class.
@@ -34,6 +35,8 @@ class Server
 
     /** @var bool $isRunning Whether server is running. */
     private(set) bool $isRunning        = false;
+    /** @var bool $isShuttingDown Whether server is in process of shutting down. */
+    private(set) bool $isShuttingDown   = false;
     /** @var int $startedAt Start timestamp. */
     private int $startedAt;
 
@@ -250,9 +253,12 @@ class Server
      */
     private function shutdown(): void
     {
+        $this->isShuttingDown = true;
+
         $this->closeConnections();
         $this->reset();
 
+        $this->isShuttingDown = false;
         unset($this->startedAt);
     }
 
@@ -263,13 +269,15 @@ class Server
     private function closeConnections(): void
     {
         foreach ($this->clients as $client) {
-            $client->disconnect();
+            $client->disconnect(CloseCode::GOING_AWAY, forceClose: true);
         }
 
-        if (isset($this->stream)) {
-            @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
-            @fclose($this->stream);
+        while ($this->clients) {
+            $this->tick();
         }
+
+        @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
+        @fclose($this->stream);
     }
 
     /**
@@ -370,7 +378,7 @@ class Server
      */
     private function getReadableStreams(): array
     {
-        $streams = [$this->stream];
+        $streams = !$this->isShuttingDown ? [$this->stream] : [];
 
         foreach ($this->clients as $client) {
             if ($client->isConnected) {
