@@ -1,6 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto eol=lf
 # Exclude development files from release archives
+/.github/ export-ignore
 /tests/ export-ignore
 .editorconfig export-ignore
 .gitattributes export-ignore
