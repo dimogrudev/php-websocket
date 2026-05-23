@@ -74,7 +74,7 @@ class MessageBuilderTest extends TestCase
                 'Unexpected or too many continuation frames',
                 CloseCode::PROTOCOL_ERROR->value,
             ],
-            'new data frame before previous finished' => [
+            'unexpected new text frame' => [
                 [
                     new Frame(isFinal: false, opcode: Opcode::TEXT, payload: 'Part 1'),
                     new Frame(isFinal: true, opcode: Opcode::TEXT, payload: 'Part 2')
@@ -82,7 +82,7 @@ class MessageBuilderTest extends TestCase
                 'New data frame received before previous finished',
                 CloseCode::PROTOCOL_ERROR->value,
             ],
-            'invalid UTF-8' => [
+            'invalid UTF-8'             => [
                 [new Frame(isFinal: true, opcode: Opcode::TEXT, payload: "\xC3\x28")],
                 'Text payload is not valid UTF-8',
                 CloseCode::INVALID_FRAME_PAYLOAD_DATA->value,
