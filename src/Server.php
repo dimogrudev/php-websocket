@@ -482,19 +482,9 @@ class Server
     private function setInternalTimers(): void
     {
         $this->setTimer(function (): void {
-            foreach ($this->clients as $streamId => $client) {
-                $isConnected = $client->isConnected;
-
-                if ($isConnected) {
-                    $isConnected = $client->checkTimeouts();
-                    if (!$isConnected && $client->isRequestAccepted) {
-                        $this->online--;
-                        $this->triggerCallback(Event::CLIENT_DISCONNECT, [$client]);
-                    }
-                }
-
-                if (!$isConnected) {
-                    unset($this->clients[$streamId]);
+            foreach ($this->clients as $client) {
+                if (!$client->isConnected || !$client->checkTimeouts()) {
+                    $this->removeClient($client);
                 }
             }
         }, self::INTERVAL_CHECK_TIMEOUTS, true);
