@@ -283,8 +283,18 @@ class Server
             $this->tick();
         }
 
-        @stream_socket_shutdown($this->stream, STREAM_SHUT_RDWR);
-        @fclose($this->stream);
+        $this->closeStream($this->stream);
+    }
+
+    /**
+     * Shuts down socket stream.
+     * @param resource $stream Stream resource.
+     * @return void
+     */
+    private function closeStream(mixed $stream): void
+    {
+        @stream_socket_shutdown($stream, STREAM_SHUT_RDWR);
+        @fclose($stream);
     }
 
     /**
@@ -297,8 +307,7 @@ class Server
 
         if (is_resource($incomingStream)) {
             if (!@stream_set_blocking($incomingStream, false)) {
-                @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);
-                @fclose($incomingStream);
+                $this->closeStream($incomingStream);
                 return false;
             }
 
@@ -306,8 +315,7 @@ class Server
             $ipAddr = Client::extractIp($incomingStream);
 
             if ($ipAddr === null) {
-                @stream_socket_shutdown($incomingStream, STREAM_SHUT_RDWR);
-                @fclose($incomingStream);
+                $this->closeStream($incomingStream);
                 return false;
             }
 
