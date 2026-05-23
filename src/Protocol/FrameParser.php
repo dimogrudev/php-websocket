@@ -149,6 +149,9 @@ class FrameParser
                 }
 
                 $dataLength = (int)$unpacked[1];
+                if ($dataLength > $this->maxFrameLength) {
+                    throw new ProtocolException("Payload length exceeds maximum allowed limit", CloseCode::MESSAGE_TOO_BIG->value);
+                }
             }
         }
 
