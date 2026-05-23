@@ -1,35 +1,35 @@
 {
-    "name": "dimogrudev/php-websocket",
-    "description": "No-dependency implementation of WebSocket server in PHP",
-    "keywords": [
-        "websocket",
-        "server",
-        "rfc6455"
-    ],
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "Vadim Grudev",
-            "email": "dimogrudev98@gmail.com"
-        }
-    ],
-    "require": {
-        "php-64bit": ">=8.4"
-    },
-    "require-dev": {
-        "phpunit/phpunit": "^12.5"
-    },
-    "autoload": {
-        "psr-4": {
-            "WebSocket\\": "src/"
-        }
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "WebSocket\\Test\\": "tests/"
-        }
-    },
-    "scripts": {
-        "test": "phpunit"
+  "name": "dimogrudev/php-websocket",
+  "description": "No-dependency implementation of WebSocket server in PHP",
+  "keywords": [
+    "websocket",
+    "server",
+    "rfc6455"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Vadim Grudev",
+      "email": "dimogrudev98@gmail.com"
     }
+  ],
+  "require": {
+    "php-64bit": ">=8.4"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^12.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "WebSocket\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "WebSocket\\Test\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit"
+  }
 }
