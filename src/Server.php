@@ -190,7 +190,14 @@ class Server
         $write = $this->getWritableStreams();
         $except = null;
 
-        if (@stream_select($read, $write, $except, 0, $loopTimeoutMicro)) {
+        if ($read || $write) {
+            $result = @stream_select($read, $write, $except, 0, $loopTimeoutMicro);
+        } else {
+            usleep($loopTimeoutMicro);
+            $result = 0;
+        }
+
+        if ($result > 0) {
             foreach ($read as $changingStream) {
                 if ($changingStream === $this->stream) {
                     $this->acceptIncomingStream();
