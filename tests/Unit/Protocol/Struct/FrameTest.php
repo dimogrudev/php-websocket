@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Test\Protocol\Struct;
+namespace WebSocket\Test\Unit\Protocol\Struct;
 
 use PHPUnit\Framework\TestCase;
 use WebSocket\Protocol\Exception\ProtocolException;

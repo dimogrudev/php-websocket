@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Test\Protocol;
+namespace WebSocket\Test\Unit\Protocol;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;

@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Test\Infrastructure;
+namespace WebSocket\Test\Unit\Infrastructure;
 
 use PHPUnit\Framework\TestCase;
 use WebSocket\Infrastructure\Connection;

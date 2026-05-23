@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Test\Domain;
+namespace WebSocket\Test\Unit\Domain;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;

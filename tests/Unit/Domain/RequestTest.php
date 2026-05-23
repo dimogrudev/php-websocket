@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Test\Entity;
+namespace WebSocket\Test\Unit\Entity;
 
 use PHPUnit\Framework\TestCase;
 use WebSocket\Domain\Request;

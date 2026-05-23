@@ -1,6 +1,6 @@
 <?php
 
-namespace WebSocket\Test\Infrastructure\Http;
+namespace WebSocket\Test\Unit\Infrastructure\Http;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
