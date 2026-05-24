@@ -87,7 +87,16 @@ class Client implements ClientInterface
         int $maxFrameBufferSize = 8
     ) {
         $this->messageBuilder = new MessageBuilder($maxFrameBufferSize);
-        $this->connectedAt = microtime(true);
+        $this->connectedAt = $this->getCurrentTime();
+    }
+
+    /**
+     * Gets current timestamp.
+     * @return float Returns current timestamp with microseconds.
+     */
+    public function getCurrentTime(): float
+    {
+        return microtime(true);
     }
 
     /**
@@ -118,7 +127,7 @@ class Client implements ClientInterface
 
         $closePayload = pack('n', $code->value) . $reason;
 
-        $this->closedAt = microtime(true);
+        $this->closedAt = $this->getCurrentTime();
         $this->closeFrame = new Frame(true, Opcode::CLOSE, $closePayload);
 
         $this->connection->sendRaw(
@@ -246,12 +255,13 @@ class Client implements ClientInterface
 
     /**
      * Checks the client's timeouts.
+     * @param float|null $microtime Current timestamp with microseconds.
      * @return bool Returns **TRUE** if client is still connected or **FALSE** otherwise.
      */
-    public function checkTimeouts(): bool
+    public function checkTimeouts(?float $microtime = null): bool
     {
         /** @var float $microtime */
-        $microtime = microtime(true);
+        $microtime ??= microtime(true);
 
         if (isset($this->pingFrame)) {
             if (($microtime - $this->pingedAt) * 1000 > self::TIMEOUT_PING_RESPONSE) {
@@ -385,7 +395,7 @@ class Client implements ClientInterface
      */
     public function ping(): void
     {
-        $this->pingedAt = microtime(true);
+        $this->pingedAt = $this->getCurrentTime();
 
         $this->pingFrame = new Frame(true, Opcode::PING, random_bytes(16));
         $this->connection->sendRaw(
