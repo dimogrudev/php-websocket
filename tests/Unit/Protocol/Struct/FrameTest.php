@@ -46,7 +46,7 @@ class FrameTest extends TestCase
         $frame = new Frame(isFinal: true, opcode: Opcode::TEXT, payload: $payload);
         $encoded = $frame->encode();
 
-        $this->assertSame(pack('C', 0b10000000 | 0x1), $encoded[0]);
+        $this->assertSame(pack('C', 0b10000000 | Opcode::TEXT->value), $encoded[0]);
         $this->assertSame(pack('C', strlen($payload)), $encoded[1]);
         $this->assertSame($payload, substr($encoded, 2));
 
@@ -60,7 +60,7 @@ class FrameTest extends TestCase
         $frame = new Frame(isFinal: true, opcode: Opcode::BINARY, payload: $payload);
         $encoded = $frame->encode();
 
-        $this->assertSame(pack('C', 0b10000000 | 0x82), $encoded[0]);
+        $this->assertSame(pack('C', 0b10000000 | Opcode::BINARY->value), $encoded[0]);
         $this->assertSame(pack('C', 126), $encoded[1]);
         $this->assertSame(pack('n', 200), substr($encoded, 2, 2));
     }
@@ -72,7 +72,7 @@ class FrameTest extends TestCase
         $frame = new Frame(isFinal: true, opcode: Opcode::BINARY, payload: $payload);
         $encoded = $frame->encode();
 
-        $this->assertSame(pack('C', 0b10000000 | 0x82), $encoded[0]);
+        $this->assertSame(pack('C', 0b10000000 | Opcode::BINARY->value), $encoded[0]);
         $this->assertSame(pack('C', 127), $encoded[1]);
         $this->assertSame(pack('J', 70000), substr($encoded, 2, 8));
     }

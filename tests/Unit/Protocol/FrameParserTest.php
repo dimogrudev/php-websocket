@@ -84,11 +84,13 @@ class FrameParserTest extends TestCase
 
     public function testParseReturnsNullWhenPayloadIsIncomplete(): void
     {
-        $header = pack('C2', 0b10000001, 0b10000101);
+        $dataLength = 100;
+
+        $header = pack('C2', 0b10000000 | Opcode::TEXT->value, 0b10000000 | $dataLength);
         $mask = "\x11\x22\x33\x44";
 
-        $incompleteData = $header . substr($mask, 0, 2);
-        $connection = $this->createConnectionWithData($incompleteData);
+        $data = $header . $mask;
+        $connection = $this->createConnectionWithData($data);
 
         $this->assertNull(
             $this->parser->parse($connection)
@@ -104,25 +106,25 @@ class FrameParserTest extends TestCase
 
         return [
             'standard text frame'       => [
-                self::buildTestFrame(0b10000001, 5, $mask, $textPayload),
+                self::buildTestFrame(0b10000000 | Opcode::TEXT->value, 5, $mask, $textPayload),
                 Opcode::TEXT,
                 $textPayload,
                 true,
             ],
             'fragmented binary frame'   => [
-                self::buildTestFrame(0b00000010, 5, $mask, $textPayload),
+                self::buildTestFrame(0b00000000 | Opcode::BINARY->value, 5, $mask, $textPayload),
                 Opcode::BINARY,
                 $textPayload,
                 false,
             ],
             'empty ping frame'          => [
-                self::buildTestFrame(0b10001001, 0, $mask, null),
+                self::buildTestFrame(0b10000000 | Opcode::PING->value, 0, $mask, null),
                 Opcode::PING,
                 null,
                 true,
             ],
             'extended payload'          => [
-                self::buildTestFrame(0b10000010, 130, $mask, $longPayload),
+                self::buildTestFrame(0b10000000 | Opcode::BINARY->value, 130, $mask, $longPayload),
                 Opcode::BINARY,
                 $longPayload,
                 true,
@@ -150,27 +152,27 @@ class FrameParserTest extends TestCase
 
         return [
             'unmasked client frame'     => [
-                self::buildTestFrame(0b10000001, 5, $mask, 'Hello', isMasked: false),
+                self::buildTestFrame(0b10000000 | Opcode::TEXT->value, 5, $mask, 'Hello', isMasked: false),
                 'Client frames must be masked',
                 CloseCode::PROTOCOL_ERROR->value,
             ],
             'invalid opcode'            => [
-                self::buildTestFrame(0b10000111, 0, $mask, null),
+                self::buildTestFrame(0b10000000 | 0x7, 0, $mask, null),
                 'Invalid opcode',
                 CloseCode::PROTOCOL_ERROR->value,
             ],
             'fragmented control frame'  => [
-                self::buildTestFrame(0b00001001, 0, $mask, null),
+                self::buildTestFrame(0b00000000 | Opcode::PING->value, 0, $mask, null),
                 'Control frames must not be fragmented',
                 CloseCode::PROTOCOL_ERROR->value,
             ],
             'control frame too big'     => [
-                self::buildTestFrame(0b10001001, 130, $mask, null),
+                self::buildTestFrame(0b10000000 | Opcode::PING->value, 130, $mask, null),
                 'Only non-control frames can have extended length',
                 CloseCode::PROTOCOL_ERROR->value,
             ],
             'payload too big'           => [
-                self::buildTestFrame(0b10000010, 5000, $mask, null),
+                self::buildTestFrame(0b10000000 | Opcode::BINARY->value, 5000, $mask, null),
                 'Payload length exceeds maximum allowed limit',
                 CloseCode::MESSAGE_TOO_BIG->value,
             ],
