@@ -9,6 +9,7 @@ use WebSocket\Domain\Message;
 use WebSocket\Domain\Request;
 use WebSocket\Infrastructure\Connection;
 use WebSocket\Infrastructure\Http\HandshakeParser;
+use WebSocket\Infrastructure\Http\Registry\ClientError;
 use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\Registry\CloseCode;
 use WebSocket\Protocol\Registry\Opcode;
@@ -50,6 +51,19 @@ class ClientTest extends TestCase
     }
 
     /////////////////////////////////
+
+    private static function createValidRequest(): string
+    {
+        $key = base64_encode(
+            random_bytes(16)
+        );
+        return "GET /chat HTTP/1.1\r\n"
+            . "Host: localhost\r\n"
+            . "Upgrade: websocket\r\n"
+            . "Connection: Upgrade\r\n"
+            . "Sec-WebSocket-Key: {$key}\r\n"
+            . "Sec-WebSocket-Version: 13\r\n\r\n";
+    }
 
     private static function doHandshake(self $test, mixed $stream, Client $client, Connection $connection): void
     {
@@ -97,17 +111,7 @@ class ClientTest extends TestCase
 
     public function testReceiveRequest(): void
     {
-        $key = base64_encode(
-            random_bytes(16)
-        );
-        $rawRequest = "GET /chat HTTP/1.1\r\n"
-            . "Host: localhost\r\n"
-            . "Upgrade: websocket\r\n"
-            . "Connection: Upgrade\r\n"
-            . "Sec-WebSocket-Key: {$key}\r\n"
-            . "Sec-WebSocket-Version: 13\r\n\r\n";
-
-        fwrite($this->stream, $rawRequest);
+        fwrite($this->stream, $this->createValidRequest());
         rewind($this->stream);
 
         $this->client->pull();
@@ -321,6 +325,38 @@ class ClientTest extends TestCase
 
                     $client->disconnect(CloseCode::NORMAL_CLOSURE);
                     $client->push();
+
+                    ftruncate($stream, 0);
+                    rewind($stream);
+                },
+                Client::TIMEOUT_CLOSE / 1000.0 + 0.1,
+                false
+            ],
+            'deny: within limits'       => [
+                function (self $test, mixed $stream, Client $client, Connection $connection) {
+                    fwrite($stream, $test->createValidRequest());
+                    rewind($stream);
+
+                    /** @var Client&object{mockedTime: float} $client */
+                    $client->pull();
+                    $client->receiveRequest();
+                    $client->error(ClientError::BAD_REQUEST);
+
+                    ftruncate($stream, 0);
+                    rewind($stream);
+                },
+                Client::TIMEOUT_CLOSE / 1000.0 - 0.1,
+                true
+            ],
+            'deny: timed out'           => [
+                function (self $test, mixed $stream, Client $client, Connection $connection) {
+                    fwrite($stream, $test->createValidRequest());
+                    rewind($stream);
+
+                    /** @var Client&object{mockedTime: float} $client */
+                    $client->pull();
+                    $client->receiveRequest();
+                    $client->error(ClientError::BAD_REQUEST);
 
                     ftruncate($stream, 0);
                     rewind($stream);

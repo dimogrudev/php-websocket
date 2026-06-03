@@ -349,10 +349,9 @@ class Server
         if (!$client->isHandshakePerformed) {
             if ($request = $client->receiveRequest()) {
                 if ($this->triggerCallback(Event::HANDSHAKE, [$client, $request])) {
-                    $this->online++;
-                    $client->acceptRequest();
-
-                    $this->triggerCallback(Event::CLIENT_CONNECT, [$client]);
+                    if ($client->isRequestDenied) {
+                        return;
+                    }
 
                     $secKey = $request->header('sec-websocket-key');
                     if ($secKey === null) {
@@ -360,7 +359,11 @@ class Server
                         return;
                     }
 
+                    $this->online++;
+                    $client->acceptRequest();
+
                     $client->performHandshake($secKey);
+                    $this->triggerCallback(Event::CLIENT_CONNECT, [$client]);
                 } else {
                     $client->error(ClientError::FORBIDDEN);
                 }

@@ -59,6 +59,8 @@ class Client implements ClientInterface
     private(set) bool $isRequestReceived    = false;
     /** @var bool $isRequestAccepted Whether request is accepted by server. */
     private(set) bool $isRequestAccepted    = false;
+    /** @var bool $isRequestDenied Whether request is denied by server. */
+    private(set) bool $isRequestDenied      = false;
 
     /** @var Frame $pingFrame Ping frame sent to client. */
     private Frame $pingFrame;
@@ -203,13 +205,39 @@ class Client implements ClientInterface
     }
 
     /**
+     * Confirms request denial.
+     * @return void
+     */
+    private function denyRequest(): void
+    {
+        if ($this->isRequestReceived) {
+            $this->closedAt = $this->getCurrentTime();
+            $this->isRequestDenied = true;
+        }
+    }
+
+    /**
+     * Sends raw HTTP header to the client and optionally closes the connection.
+     * @param string $header Raw HTTP header string to send.
+     * @param bool $finish Whether to force close the connection after sending.
+     * @return void
+     */
+    private function sendHeader(string $header, bool $finish): void
+    {
+        $this->connection->sendRaw($header);
+        if ($finish) {
+            $this->connection->finish(forceClose: true);
+        }
+    }
+
+    /**
      * Tries to perform handshake with the client.
      * @param string $secKey Security key.
      * @return void
      */
     public function performHandshake(string $secKey): void
     {
-        if (!$this->isHandshakePerformed) {
+        if (!$this->isHandshakePerformed && !$this->isRequestDenied) {
             $secAccept = base64_encode(
                 pack('H*', sha1($secKey . self::WEBSOCKET_GUID))
             );
@@ -218,7 +246,7 @@ class Client implements ClientInterface
                 "Connection: Upgrade\r\n" .
                 "Sec-WebSocket-Accept: $secAccept\r\n\r\n";
 
-            $this->connection->sendRaw($upgrade);
+            $this->sendHeader($upgrade, finish: false);
             $this->isHandshakePerformed = true;
         }
     }
@@ -229,11 +257,12 @@ class Client implements ClientInterface
      */
     public function redirect(Redirection $code, string $location): void
     {
-        if (!$this->isHandshakePerformed) {
+        if (!$this->isHandshakePerformed && !$this->isRequestDenied) {
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Location: $location\r\n\r\n";
-            $this->connection->sendRaw($header);
-            $this->connection->finish(forceClose: true);
+
+            $this->denyRequest();
+            $this->sendHeader($header, finish: true);
         }
     }
 
@@ -243,13 +272,13 @@ class Client implements ClientInterface
      */
     public function error(ClientError $code): void
     {
-        if (!$this->isHandshakePerformed) {
+        if (!$this->isHandshakePerformed && !$this->isRequestDenied) {
             $date = gmdate('D, d M Y H:i:s T');
             $header = "HTTP/1.1 {$code->value} {$code->getStatus()}\r\n" .
                 "Date: $date\r\n\r\n";
 
-            $this->connection->sendRaw($header);
-            $this->connection->finish(forceClose: true);
+            $this->denyRequest();
+            $this->sendHeader($header, finish: true);
         }
     }
 
@@ -269,7 +298,7 @@ class Client implements ClientInterface
                 return false;
             }
         }
-        if (isset($this->closeFrame)) {
+        if (isset($this->closeFrame) || $this->isRequestDenied) {
             if (($microtime - $this->closedAt) * 1000 > self::TIMEOUT_CLOSE) {
                 $this->connection->close();
                 return false;
