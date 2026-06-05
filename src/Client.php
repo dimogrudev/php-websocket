@@ -96,7 +96,7 @@ class Client implements ClientInterface
      * Gets current timestamp.
      * @return float Returns current timestamp with microseconds.
      */
-    public function getCurrentTime(): float
+    protected function getCurrentTime(): float
     {
         return microtime(true);
     }

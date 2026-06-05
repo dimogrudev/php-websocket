@@ -36,7 +36,7 @@ class ClientTest extends TestCase
         ) extends Client {
             public float $mockedTime = ClientTest::BASE_TIME;
 
-            public function getCurrentTime(): float
+            protected function getCurrentTime(): float
             {
                 return $this->mockedTime;
             }
