@@ -24,9 +24,9 @@ class Server
     /////////////////////////////////
 
     /** @var HandshakeParser $handshakeParser Handshake request parser service. */
-    private readonly HandshakeParser $handshakeParser;
+    protected readonly HandshakeParser $handshakeParser;
     /** @var FrameParser $frameParser Frame parser service. */
-    private readonly FrameParser $frameParser;
+    protected readonly FrameParser $frameParser;
 
     /** @var resource $stream Server stream. */
     private mixed $stream;
@@ -37,14 +37,14 @@ class Server
     private(set) bool $isRunning        = false;
     /** @var bool $isShuttingDown Whether server is in process of shutting down. */
     private(set) bool $isShuttingDown   = false;
-    /** @var int $startedAt Start timestamp. */
-    private int $startedAt;
+    /** @var float $startedAt Start timestamp. */
+    private float $startedAt;
 
     /** @var int $uptime Server uptime. */
     public int $uptime {
         get {
             if (isset($this->startedAt)) {
-                return time() - $this->startedAt;
+                return (int)floor($this->getCurrentTime() - $this->startedAt);
             }
             return 0;
         }
@@ -82,6 +82,32 @@ class Server
         $this->frameParser = new FrameParser($maxChunksPerFrame * $maxChunkLength);
 
         $this->setInternalTimers();
+    }
+
+    /**
+     * Gets current timestamp.
+     * @return float Returns current timestamp with microseconds.
+     */
+    protected function getCurrentTime(): float
+    {
+        return microtime(true);
+    }
+
+    /**
+     * Creates client instance.
+     * @param Connection $connection Connection stream wrapper.
+     * @param string $ipAddr Client IP address.
+     * @return Client Returns configured client instance.
+     */
+    protected function createClient(Connection $connection, string $ipAddr): Client
+    {
+        return new Client(
+            $this->handshakeParser,
+            $this->frameParser,
+            $connection,
+            $ipAddr,
+            $this->maxFrameBufferSize
+        );
     }
 
     /**
@@ -124,7 +150,7 @@ class Server
         }
 
         $this->isRunning = true;
-        $this->startedAt = time();
+        $this->startedAt = $this->getCurrentTime();
 
         while ($this->isRunning) {
             $this->tick();
@@ -326,13 +352,7 @@ class Server
                 $this->maxChunkLength
             );
 
-            $this->clients[$streamId] = new Client(
-                $this->handshakeParser,
-                $this->frameParser,
-                $connection,
-                $ipAddr,
-                $this->maxFrameBufferSize
-            );
+            $this->clients[$streamId] = $this->createClient($connection, $ipAddr);
             return true;
         }
 
@@ -452,7 +472,9 @@ class Server
      */
     public function setTimer(\Closure $function, int $delay, bool $isPeriodic = false): int
     {
-        $this->timers[] = new Timer($function, $delay, $isPeriodic);
+        $microtime = $this->getCurrentTime();
+
+        $this->timers[] = new Timer($function, $delay, $isPeriodic, $microtime);
         return array_key_last($this->timers);
     }
 
@@ -474,8 +496,7 @@ class Server
      */
     private function checkTimers(): void
     {
-        /** @var float $microtime */
-        $microtime = microtime(true);
+        $microtime = $this->getCurrentTime();
 
         foreach ($this->timers as $timerId => $timer) {
             if ($timer->tick($microtime)) {
@@ -493,8 +514,10 @@ class Server
     private function setInternalTimers(): void
     {
         $this->setTimer(function (): void {
+            $microtime = $this->getCurrentTime();
+
             foreach ($this->clients as $client) {
-                if (!$client->isConnected || !$client->checkTimeouts()) {
+                if (!$client->isConnected || !$client->checkTimeouts($microtime)) {
                     $this->removeClient($client);
                 }
             }
