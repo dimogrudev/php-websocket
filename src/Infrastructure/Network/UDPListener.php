@@ -77,7 +77,8 @@ class UDPListener
             $packet = @stream_socket_recvfrom($this->stream, $this->maxPacketLength, address: $peer);
 
             if ($packet !== false && $peer !== null) {
-                ($this->function)($this, $peer, $packet);
+                $datagram = new UDPDatagram($this, $peer, $packet);
+                ($this->function)($datagram);
             }
             return true;
         }

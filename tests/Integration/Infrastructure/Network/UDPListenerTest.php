@@ -3,6 +3,7 @@
 namespace WebSocket\Test\Integration\Infrastructure\Network;
 
 use PHPUnit\Framework\TestCase;
+use WebSocket\Contract\DatagramInterface;
 use WebSocket\Infrastructure\Network\UDPListener;
 
 class UDPListenerTest extends TestCase
@@ -18,7 +19,7 @@ class UDPListenerTest extends TestCase
 
     /////////////////////////////////
 
-    /** @param (\Closure(UDPListener, string, string): void) $function */
+    /** @param (\Closure(DatagramInterface): void) $function */
     private function createListener(\Closure $function): void
     {
         $this->udpListener = new UDPListener('127.0.0.1', 0, $function);
@@ -53,11 +54,11 @@ class UDPListenerTest extends TestCase
         $receivedPeer = '';
         $receivedPayload = '';
 
-        $this->createListener(function ($listener, $peer, $packet) use (&$receivedPeer, &$receivedPayload, $replyMessage) {
-            $receivedPeer = $peer;
-            $receivedPayload = $packet;
+        $this->createListener(function (DatagramInterface $datagram) use (&$receivedPeer, &$receivedPayload, $replyMessage) {
+            $receivedPeer = $datagram->peer;
+            $receivedPayload = $datagram->payload;
 
-            $listener->respond($peer, $replyMessage);
+            $datagram->respond($replyMessage);
         });
         $this->assertIsResource($this->udpListener->stream);
 
@@ -87,7 +88,7 @@ class UDPListenerTest extends TestCase
 
     public function testIgnoreForeignStreams(): void
     {
-        $this->createListener(function ($listener, $peer, $packet) {});
+        $this->createListener(function (DatagramInterface $datagram) {});
 
         $foreignStream = fopen('php://memory', 'r+');
 
