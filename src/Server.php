@@ -595,6 +595,19 @@ class Server
     }
 
     /**
+     * Gets local socket name for specific registered UDP listener.
+     * @param int $listenerId UDP listener ID.
+     * @return string|null Returns socket name string if UDP listener is initialized or **NULL** otherwise.
+     */
+    public function getUdpSocketName(int $listenerId): ?string
+    {
+        if (isset($this->udpListeners[$listenerId])) {
+            return $this->udpListeners[$listenerId]->getSocketName();
+        }
+        return null;
+    }
+
+    /**
      * Checks if stream belongs to any registered UDP listener and handles it.
      * @param resource $stream Stream resource to check.
      * @return bool Returns **TRUE** if UDP listener handled the stream or **FALSE** otherwise.

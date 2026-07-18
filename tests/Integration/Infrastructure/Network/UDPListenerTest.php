@@ -62,7 +62,7 @@ class UDPListenerTest extends TestCase
         });
         $this->assertIsResource($this->udpListener->stream);
 
-        $socketName = stream_socket_get_name($this->udpListener->stream, false);
+        $socketName = $this->udpListener->getSocketName();
         $this->assertIsString($socketName);
 
         $clientStream = stream_socket_client("udp://{$socketName}", $errno, $errstr);

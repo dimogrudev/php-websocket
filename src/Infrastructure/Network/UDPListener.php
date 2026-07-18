@@ -63,6 +63,18 @@ class UDPListener
     /////////////////////////////////
 
     /**
+     * Gets actual socket name assigned by the OS.
+     * @return string|null Returns socket name string if UDP listener is initialized or **NULL** otherwise.
+     */
+    public function getSocketName(): ?string
+    {
+        if (isset($this->stream) && is_resource($this->stream)) {
+            return stream_socket_get_name($this->stream, remote: false);
+        }
+        return null;
+    }
+
+    /**
      * Processes incoming data if the triggered stream matches this listener's socket.
      * @param resource $activeStream Stream resource marked as readable.
      * @return bool Returns **TRUE** if this listener handled the active stream or **FALSE** otherwise.
