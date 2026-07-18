@@ -40,7 +40,7 @@ class UDPListenerTest extends TestCase
                 break;
             }
             if (++$attempts > $maxAttempts) {
-                $this->fail("Timed out waiting for UDP packet to arrive in the socket buffer.");
+                $this->fail('Timed out waiting for UDP packet to arrive in the socket buffer.');
             }
         }
     }
@@ -74,16 +74,16 @@ class UDPListenerTest extends TestCase
         $this->waitForPacket($this->udpListener->stream);
         $handled = $this->udpListener->handleIfActive($this->udpListener->stream);
 
-        $this->assertTrue($handled, "Listener should report that it handled its own active stream.");
-        $this->assertSame($testData, $receivedPayload, "Captured packet payload does not match the sent message.");
-        $this->assertStringStartsWith('127.0.0.1', $receivedPeer, "Sender peer IP should match the local host.");
+        $this->assertTrue($handled, 'Listener should report that it handled its own active stream.');
+        $this->assertSame($testData, $receivedPayload, 'Captured packet payload does not match the sent message.');
+        $this->assertStringStartsWith('127.0.0.1', $receivedPeer, 'Sender peer IP should match the local host.');
 
         $this->waitForPacket($clientStream);
 
         $clientResponse = fread($clientStream, 1024);
         fclose($clientStream);
 
-        $this->assertSame($replyMessage, $clientResponse, "Client did not receive the expected response from the packet context.");
+        $this->assertSame($replyMessage, $clientResponse, 'Client did not receive the expected response from the packet context.');
     }
 
     public function testIgnoreForeignStreams(): void
@@ -95,6 +95,6 @@ class UDPListenerTest extends TestCase
         $handled = $this->udpListener->handleIfActive($foreignStream);
         fclose($foreignStream);
 
-        $this->assertFalse($handled, "Listener must ignore streams that do not belong to it.");
+        $this->assertFalse($handled, 'Listener must ignore streams that do not belong to it.');
     }
 }

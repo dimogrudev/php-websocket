@@ -6,6 +6,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use WebSocket\Client;
 use WebSocket\Contract\ClientInterface;
+use WebSocket\Contract\DatagramInterface;
 use WebSocket\Contract\MessageInterface;
 use WebSocket\Contract\RequestInterface;
 use WebSocket\Infrastructure\Connection;
@@ -101,16 +102,35 @@ class ServerTest extends TestCase
 
     /////////////////////////////////
 
-    private function readFromClientStream(int $bytes = 8192): string
+    /** @param resource $stream */
+    private function readFromStream(mixed $stream, int $bytes = 8192, int $streamSelectTimeout = 10000): string
     {
-        $read = [self::$clientStream];
+        $read = [$stream];
         $write = null;
         $except = null;
 
-        if (@stream_select($read, $write, $except, 0, 10000) > 0) {
-            return fread(self::$clientStream, $bytes) ?: '';
+        if (@stream_select($read, $write, $except, 0, $streamSelectTimeout) > 0) {
+            return fread($stream, $bytes) ?: '';
         }
         return '';
+    }
+
+    private function readFromClientStream(int $bytes = 8192): string
+    {
+        return $this->readFromStream(self::$clientStream, $bytes);
+    }
+
+    private function readFromUdpStream(mixed $stream, int $bytes, int $maxAttempts = 50, int $attemptTimeout = 10000): string
+    {
+        $attempts = 0;
+
+        while ($attempts++ <= $maxAttempts) {
+            if (($data = $this->readFromStream($stream, $bytes, $attemptTimeout)) !== '') {
+                return $data;
+            }
+        }
+
+        $this->fail('Timed out waiting for UDP packet to arrive in the socket buffer.');
     }
 
     private function writeToClientStream(string $data, int $timeout = 2000): void
@@ -594,5 +614,45 @@ class ServerTest extends TestCase
 
             $this->server->mockedTime += $timerDelay / 1000.0 + 0.1;
         }
+    }
+
+    public function testUdpListenerReceivesAndResponds(): void
+    {
+        $replyMessage = 'Packet processed!';
+
+        $receivedPeer = '';
+        $receivedPayload = '';
+
+        $listenerId = $this->server->listenUdp('127.0.0.1', 0, function (DatagramInterface $datagram) use (&$receivedPeer, &$receivedPayload, $replyMessage): void {
+            $receivedPeer = $datagram->peer;
+            $receivedPayload = $datagram->payload;
+
+            $datagram->respond($replyMessage);
+        });
+
+        $this->startServer();
+
+        $udpSocketName = $this->server->getUdpSocketName($listenerId);
+        $this->assertIsString($udpSocketName);
+
+        $udpClientStream = stream_socket_client("udp://{$udpSocketName}", $errno, $errstr);
+        $this->assertIsResource($udpClientStream, "Failed to create UDP client socket: {$errstr}.");
+
+        stream_set_blocking($udpClientStream, false);
+
+        $testData = 'Hello, world!';
+        fwrite($udpClientStream, $testData);
+
+        $this->awaitState(function () use (&$receivedPayload) {
+            return $receivedPayload !== '';
+        }, message: 'Server failed to receive UDP packet.');
+
+        $this->assertSame($testData, $receivedPayload, 'Captured packet payload does not match the sent message.');
+        $this->assertStringStartsWith('127.0.0.1', $receivedPeer, 'Sender peer IP should match the local host.');
+
+        $clientResponse = $this->readFromUdpStream($udpClientStream, 1024);
+        fclose($udpClientStream);
+
+        $this->assertSame($replyMessage, $clientResponse, 'Client did not receive the expected response from the packet context.');
     }
 }
