@@ -654,5 +654,7 @@ class ServerTest extends TestCase
         fclose($udpClientStream);
 
         $this->assertSame($replyMessage, $clientResponse, 'Client did not receive the expected response from the packet context.');
+
+        $this->server->closeUdp($listenerId);
     }
 }
