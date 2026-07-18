@@ -12,6 +12,7 @@ Lightweight and minimalistic.
 * Binary and textual data message support, both sending and receiving
 * Transparent reassembly of incoming fragmented messages
 * Built-in handling for Ping, Pong, and Close control frames
+* Non-blocking UDP datagram networking
 * User-defined non-blocking timers
 * Non-blocking I/O
 
@@ -65,7 +66,29 @@ $server->start();
 ```
 
 > [!TIP]
-> Modern browsers block non-secure WebSocket connections (`ws://`) on secure websites (`https://`). Always use a valid SSL/TLS certificate (e.g. **Let's Encrypt**) for production.
+> Modern browsers block non-secure WebSocket connections (`ws://`) on secure websites (`https://`).
+> For production, always use a valid SSL/TLS certificate (e.g., **Let's Encrypt**) or run the server behind a secure reverse proxy (like **Nginx**, **Caddy**, or **Traefik**) to handle SSL/TLS termination.
+
+### UDP Networking
+
+```php
+use WebSocket\Contract\DatagramInterface;
+```
+
+```php
+// Register a UDP listener to execute a function when a packet is received
+// It provides listener ID which may be used for later cancellation
+$listenerId = $server->listenUdp('127.0.0.1', 8600, function (DatagramInterface $packet): void {
+    $payloadLength = strlen($packet->payload);
+    echo "UDP packet received from {$packet->peer} ({$payloadLength} bytes)\n";
+
+    // Reply back to the peer
+    $packet->respond("Response data");
+});
+
+// Unregister and close the UDP listener
+$server->closeUdp($listenerId);
+```
 
 ### Timers
 

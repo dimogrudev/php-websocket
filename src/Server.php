@@ -3,12 +3,14 @@
 namespace WebSocket;
 
 use WebSocket\Contract\ClientInterface;
+use WebSocket\Contract\DatagramInterface;
 use WebSocket\Contract\MessageInterface;
 use WebSocket\Contract\RequestInterface;
 use WebSocket\Domain\Registry\Event;
 use WebSocket\Infrastructure\Connection;
 use WebSocket\Infrastructure\Http\HandshakeParser;
 use WebSocket\Infrastructure\Http\Registry\ClientError;
+use WebSocket\Infrastructure\Network\UDPListener;
 use WebSocket\Infrastructure\Timer;
 use WebSocket\Protocol\FrameParser;
 use WebSocket\Protocol\Registry\CloseCode;
@@ -59,6 +61,11 @@ class Server
     private array $callbacks            = [];
     /** @var Timer[] $timers Server timers. */
     private array $timers               = [];
+
+    /** @var UDPListener[] $udpListeners UDP listeners. */
+    private array $udpListeners         = [];
+    /** @var array<int, UDPListener> $udpStreamMap Map of stream resource IDs to their respective UDP listeners. */
+    private array $udpStreamMap         = [];
 
     /////////////////////////////////
 
@@ -178,6 +185,8 @@ class Server
         }
 
         $this->stream = $stream;
+
+        $this->startAllUdpListeners();
         $this->triggerCallback(Event::SERVER_START);
     }
 
@@ -201,6 +210,7 @@ class Server
         $this->clients = [];
         $this->online = 0;
 
+        $this->stopAllUdpListeners();
         $this->triggerCallback(Event::SERVER_STOP);
     }
 
@@ -227,7 +237,7 @@ class Server
             foreach ($read as $changingStream) {
                 if ($changingStream === $this->stream) {
                     $this->acceptIncomingStream();
-                } else {
+                } elseif (!$this->handleUdpStream($changingStream)) {
                     $streamId = get_resource_id($changingStream);
 
                     if (isset($this->clients[$streamId])) {
@@ -258,6 +268,21 @@ class Server
         }
 
         $this->checkTimers();
+    }
+
+    /**
+     * Gets actual socket name (IP and port) for the server or a specific stream.
+     * @param resource|null $stream Explicit stream resource to check (optional).
+     * @return string|null Returns socket name string or **NULL** on failure.
+     */
+    public function getSocketName(mixed $stream = null): ?string
+    {
+        $targetStream = $stream ?? $this->stream ?? null;
+
+        if (isset($targetStream) && is_resource($targetStream)) {
+            return @stream_socket_get_name($targetStream, remote: false);
+        }
+        return null;
     }
 
     /////////////////////////////////
@@ -423,6 +448,11 @@ class Server
                 $streams[] = $client->stream;
             }
         }
+        foreach ($this->udpListeners as $listener) {
+            if (isset($listener->stream)) {
+                $streams[] = $listener->stream;
+            }
+        }
 
         return $streams;
     }
@@ -530,6 +560,113 @@ class Server
                 }
             }
         }, self::INTERVAL_PING, true);
+    }
+
+    /////////// UDP SOCKET //////////
+
+    /**
+     * Registers UDP listener.
+     * @param string $host Host to listen on.
+     * @param int $port Port to listen on.
+     * @param (\Closure(DatagramInterface): void) $function Callback executed when valid packet is received.
+     * @param int $maxPacketLength Maximum buffer length (in bytes) for receiving single UDP datagram.
+     * @return int Returns UDP listener ID.
+     */
+    public function listenUdp(string $host, int $port, \Closure $function, int $maxPacketLength = 1024): int
+    {
+        $listener = new UDPListener($host, $port, $function, $maxPacketLength);
+
+        if (isset($this->stream)) {
+            $listener->start();
+
+            if (isset($listener->stream)) {
+                $streamId = get_resource_id($listener->stream);
+                $this->udpStreamMap[$streamId] = $listener;
+            }
+        }
+
+        $this->udpListeners[] = $listener;
+        return array_key_last($this->udpListeners);
+    }
+
+    /**
+     * Unregisters UDP listener.
+     * @param int $listenerId UDP listener ID.
+     * @return void
+     */
+    public function closeUdp(int $listenerId): void
+    {
+        if (isset($this->udpListeners[$listenerId])) {
+            $listener = $this->udpListeners[$listenerId];
+
+            if (isset($listener->stream)) {
+                $streamId = get_resource_id($listener->stream);
+                unset($this->udpStreamMap[$streamId]);
+            }
+            $listener->stop();
+
+            unset($this->udpListeners[$listenerId]);
+        }
+    }
+
+    /**
+     * Gets local socket name for specific registered UDP listener.
+     * @param int $listenerId UDP listener ID.
+     * @return string|null Returns socket name string if UDP listener is initialized or **NULL** otherwise.
+     */
+    public function getUdpSocketName(int $listenerId): ?string
+    {
+        if (isset($this->udpListeners[$listenerId])) {
+            return $this->udpListeners[$listenerId]->getSocketName();
+        }
+        return null;
+    }
+
+    /**
+     * Checks if stream belongs to any registered UDP listener and handles it.
+     * @param resource $stream Stream resource to check.
+     * @return bool Returns **TRUE** if UDP listener handled the stream or **FALSE** otherwise.
+     */
+    private function handleUdpStream(mixed $stream): bool
+    {
+        $streamId = get_resource_id($stream);
+
+        if (isset($this->udpStreamMap[$streamId])) {
+            $listener = $this->udpStreamMap[$streamId];
+            return $listener->handleIfActive($stream);
+        }
+        return false;
+    }
+
+    /**
+     * Starts all registered UDP listeners.
+     * @return void
+     */
+    private function startAllUdpListeners(): void
+    {
+        $this->udpStreamMap = [];
+
+        foreach ($this->udpListeners as $listener) {
+            $listener->start();
+
+            if (isset($listener->stream)) {
+                $streamId = get_resource_id($listener->stream);
+                $this->udpStreamMap[$streamId] = $listener;
+            }
+        }
+    }
+
+    /**
+     * Stops all registered UDP listeners.
+     * @return void
+     */
+    private function stopAllUdpListeners(): void
+    {
+        foreach ($this->udpListeners as $listener) {
+            $listener->stop();
+        }
+
+        $this->udpStreamMap = [];
     }
 
     /////////// CALLBACKS ///////////
