@@ -69,7 +69,7 @@ class UDPListener
     public function getSocketName(): ?string
     {
         if (isset($this->stream) && is_resource($this->stream)) {
-            return stream_socket_get_name($this->stream, remote: false);
+            return @stream_socket_get_name($this->stream, remote: false);
         }
         return null;
     }

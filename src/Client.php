@@ -439,7 +439,7 @@ class Client implements ClientInterface
      */
     public static function extractIp(mixed $stream): ?string
     {
-        $socketName = @stream_socket_get_name($stream, true);
+        $socketName = @stream_socket_get_name($stream, remote: true);
 
         if ($socketName) {
             $socketName = preg_replace('/\s+/', '', $socketName);

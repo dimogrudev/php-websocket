@@ -85,7 +85,7 @@ class ServerTest extends TestCase
             }
         };
 
-        $socketName = stream_socket_get_name(self::$serverStream, false);
+        $socketName = $this->server->getSocketName(self::$serverStream);
         $this->assertIsString($socketName);
 
         self::$clientStream = stream_socket_client("tcp://{$socketName}", $errno, $errstr, 1);

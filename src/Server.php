@@ -270,6 +270,21 @@ class Server
         $this->checkTimers();
     }
 
+    /**
+     * Gets actual socket name (IP and port) for the server or a specific stream.
+     * @param resource|null $stream Explicit stream resource to check (optional).
+     * @return string|null Returns socket name string or **NULL** on failure.
+     */
+    public function getSocketName(mixed $stream = null): ?string
+    {
+        $targetStream = $stream ?? $this->stream ?? null;
+
+        if (isset($targetStream) && is_resource($targetStream)) {
+            return @stream_socket_get_name($targetStream, remote: false);
+        }
+        return null;
+    }
+
     /////////////////////////////////
 
     /**
