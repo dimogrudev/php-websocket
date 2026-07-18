@@ -61,8 +61,11 @@ class Server
     private array $callbacks            = [];
     /** @var Timer[] $timers Server timers. */
     private array $timers               = [];
+
     /** @var UDPListener[] $udpListeners UDP listeners. */
     private array $udpListeners         = [];
+    /** @var array<int, UDPListener> $udpStreamMap Map of stream resource IDs to their respective UDP listeners. */
+    private array $udpStreamMap         = [];
 
     /////////////////////////////////
 
@@ -557,8 +560,14 @@ class Server
     public function listenUdp(string $host, int $port, \Closure $function, int $maxPacketLength = 1024): int
     {
         $listener = new UDPListener($host, $port, $function, $maxPacketLength);
+
         if (isset($this->stream)) {
             $listener->start();
+
+            if (isset($listener->stream)) {
+                $streamId = get_resource_id($listener->stream);
+                $this->udpStreamMap[$streamId] = $listener;
+            }
         }
 
         $this->udpListeners[] = $listener;
@@ -573,7 +582,14 @@ class Server
     public function closeUdp(int $listenerId): void
     {
         if (isset($this->udpListeners[$listenerId])) {
-            $this->udpListeners[$listenerId]->stop();
+            $listener = $this->udpListeners[$listenerId];
+
+            if (isset($listener->stream)) {
+                $streamId = get_resource_id($listener->stream);
+                unset($this->udpStreamMap[$streamId]);
+            }
+            $listener->stop();
+
             unset($this->udpListeners[$listenerId]);
         }
     }
@@ -585,12 +601,12 @@ class Server
      */
     private function handleUdpStream(mixed $stream): bool
     {
-        foreach ($this->udpListeners as $listener) {
-            if ($listener->handleIfActive($stream)) {
-                return true;
-            }
-        }
+        $streamId = get_resource_id($stream);
 
+        if (isset($this->udpStreamMap[$streamId])) {
+            $listener = $this->udpStreamMap[$streamId];
+            return $listener->handleIfActive($stream);
+        }
         return false;
     }
 
@@ -600,8 +616,15 @@ class Server
      */
     private function startAllUdpListeners(): void
     {
+        $this->udpStreamMap = [];
+
         foreach ($this->udpListeners as $listener) {
             $listener->start();
+
+            if (isset($listener->stream)) {
+                $streamId = get_resource_id($listener->stream);
+                $this->udpStreamMap[$streamId] = $listener;
+            }
         }
     }
 
@@ -614,6 +637,8 @@ class Server
         foreach ($this->udpListeners as $listener) {
             $listener->stop();
         }
+
+        $this->udpStreamMap = [];
     }
 
     /////////// CALLBACKS ///////////
